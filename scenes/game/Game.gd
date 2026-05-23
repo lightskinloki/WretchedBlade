@@ -99,6 +99,15 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 
 	var grid: Array = world_gen.build_grid_for_graph_node(dungeon_graph, node_id, rng, theme)
 	world_gen.build_room(grid, world, true)
+
+	# Move player to safe spawn BEFORE adding kill triggers or enemies
+	# so body_entered can't fire from the old position overlapping new hazards.
+	var spawn_pos := _find_spawn_from_grid(grid, node, prev_node_id)
+	print("  spawn_pos=(%d, %d) grid_rows=%d grid_cols=%d" % [spawn_pos.x, spawn_pos.y, grid.size(), grid[0].size() if grid.size() > 0 else 0])
+	GameManager.set_checkpoint(spawn_pos)
+	player.global_position = spawn_pos
+	player.velocity = Vector2.ZERO
+
 	world_gen.add_abyss_kill_trigger_for_room(world, node.room_w, node.room_h)
 
 	# Place portal triggers for ALL portals (including back to previous room)
@@ -111,13 +120,6 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 
 	# Spawn enemies
 	_spawn_enemies_for_node(node, grid)
-
-	# Safe spawn: scan the actual grid for air-above-floor near the entry portal
-	var spawn_pos := _find_spawn_from_grid(grid, node, prev_node_id)
-	print("  spawn_pos=(%d, %d) grid_rows=%d grid_cols=%d" % [spawn_pos.x, spawn_pos.y, grid.size(), grid[0].size() if grid.size() > 0 else 0])
-	GameManager.set_checkpoint(spawn_pos)
-	player.global_position = spawn_pos
-	player.velocity = Vector2.ZERO
 
 # â”€â”€ Enemy spawning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 func _spawn_enemies_for_node(node: DungeonGraph.RoomNode, grid: Array = []) -> void:

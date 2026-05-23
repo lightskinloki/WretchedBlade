@@ -14,10 +14,13 @@ const PATROL_DIST  := 140.0
 var _body:        Sprite2D
 var _blade_right:  Sprite2D
 var _blade_left:   Sprite2D
-var _hitbox:      Area2D
-var _hitbox_shape: CollisionShape2D
-var _normal_shape := RectangleShape2D.new()
-var _attack_shape := RectangleShape2D.new()
+var _right_hitbox:      Area2D
+var _left_hitbox:       Area2D
+var _right_hitbox_shape: CollisionShape2D
+var _left_hitbox_shape: CollisionShape2D
+var _right_dbg: ColorRect
+var _left_dbg: ColorRect
+const _BLADE_HITBOX_SIZE := Vector2(18, 60)
 
 var _direction   := 1.0
 var _start_pos:  Vector2
@@ -90,22 +93,33 @@ func _ready() -> void:
 	_blade_left.centered = true
 	add_child(_blade_left)
 
-	_hitbox = Area2D.new()
-	_hitbox.name = "Hitbox"
-	_hitbox.collision_mask = 4  # Layer 3 (player)
-	_hitbox.monitoring = false
-	_hitbox_shape = CollisionShape2D.new()
-	_normal_shape.size = Vector2(24, 28)
-	_attack_shape.size = Vector2(52, 36)
-	_hitbox_shape.shape = _normal_shape
-	_hitbox_shape.position = Vector2(0, -4)
-	_hitbox.add_child(_hitbox_shape)
-	add_child(_hitbox)
+	_hitbox_setup_for_blade(_blade_right, "_right_hitbox", "_right_hitbox_shape", "_right_dbg")
+	_hitbox_setup_for_blade(_blade_left, "_left_hitbox", "_left_hitbox_shape", "_left_dbg")
 
 	add_to_group("enemy")
 	add_to_group("rival")
 
-	_hitbox.body_entered.connect(_on_hitbox_entered)
+func _hitbox_setup_for_blade(blade: Sprite2D, hitbox_name: String, shape_name: String, dbg_name: String) -> void:
+	var hitbox := Area2D.new()
+	hitbox.name = blade.name + "Hitbox"
+	hitbox.collision_mask = 4
+	hitbox.monitoring = false
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = _BLADE_HITBOX_SIZE
+	shape.shape = rect
+	shape.position = Vector2(0, -2)
+	hitbox.add_child(shape)
+	var dbg := ColorRect.new()
+	dbg.size = _BLADE_HITBOX_SIZE
+	dbg.color = Color(1, 0, 0, 0.35)
+	dbg.position = Vector2(-_BLADE_HITBOX_SIZE.x * 0.5, -_BLADE_HITBOX_SIZE.y * 0.5 - 2)
+	hitbox.add_child(dbg)
+	blade.add_child(hitbox)
+	hitbox.body_entered.connect(_on_hitbox_entered)
+	set(hitbox_name, hitbox)
+	set(shape_name, shape)
+	set(dbg_name, dbg)
 
 func _physics_process(delta: float) -> void:
 	if not _is_alive or not GameManager.is_playing():
@@ -280,15 +294,26 @@ func _attack_enter_active() -> void:
 	var data: Dictionary = RIVAL_COMBO[_combo_stage]
 	_attack_phase_timer = data["active"]
 	_set_blades_modulate(Color.WHITE)
-	_hitbox.monitoring = true
-	_hitbox_shape.shape = _attack_shape
+	_enable_active_hitboxes()
+
+func _enable_active_hitboxes() -> void:
+	var data: Dictionary = RIVAL_COMBO[_combo_stage]
+	if _right_hitbox:
+		_right_hitbox.monitoring = data.get("r_start", 0.0) != data.get("r_end", 0.0)
+	if _left_hitbox:
+		_left_hitbox.monitoring = data.get("l_start", 0.0) != data.get("l_end", 0.0)
+
+func _disable_all_hitboxes() -> void:
+	if _right_hitbox:
+		_right_hitbox.monitoring = false
+	if _left_hitbox:
+		_left_hitbox.monitoring = false
 
 func _attack_enter_recovery() -> void:
 	_attack_phase = "recovery"
 	var data: Dictionary = RIVAL_COMBO[_combo_stage]
 	_attack_phase_timer = data["recovery"]
-	_hitbox.monitoring = false
-	_hitbox_shape.shape = _normal_shape
+	_disable_all_hitboxes()
 	# Smooth tween back to rest positions
 	var t := create_tween()
 	t.set_parallel(true)
@@ -324,8 +349,7 @@ func countered() -> void:
 		return
 	_state = "chase"
 	_combo_stage = 0
-	_hitbox.set_deferred("monitoring", false)
-	_hitbox_shape.set_deferred("shape", _normal_shape)
+	_disable_all_hitboxes()
 	_is_stunned = true
 	_stun_timer = 1.0
 	_set_blades_modulate(Color(1.0, 0.8, 1.0, 1.0))
@@ -340,8 +364,7 @@ func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
 	if _state == "attack":
 		_state = "chase"
 		_combo_stage = 0
-		_hitbox.set_deferred("monitoring", false)
-		_hitbox_shape.set_deferred("shape", _normal_shape)
+		_disable_all_hitboxes()
 
 	if current_health > 0:
 		_stagger_timer = 0.10

@@ -655,10 +655,29 @@ func _generate_nullman_texture(seed_val: int) -> ImageTexture:
 
 		var x1 := int(cx - base_hw + l_j)
 		var x2 := int(cx + base_hw + r_j)
+
+		# Bottom 4 rows: fracture surface — overrides normal width with a jagged
+		# cross-section so the shard looks broken, not designed to sit on the floor.
+		if y >= 16:
+			var f_cx := 6.0 + n.get_noise_2d(float(y) * 2.0, 700.0) * 3.0
+			var f_hw := 1.0 + (n.get_noise_2d(float(y) * 3.0, 800.0) * 0.5 + 0.5) * 4.5
+			var f_l := n.get_noise_2d(float(y) * 3.5, 500.0) * 3.0
+			var f_r := n.get_noise_2d(float(y) * 3.5, 600.0) * 3.0
+			x1 = int(f_cx - f_hw + f_l)
+			x2 = int(f_cx + f_hw + f_r)
+
 		x1 = clampi(x1, 0, 10)
 		x2 = clampi(x2, x1 + 1, 12)
 
 		for x in range(x1, x2):
+			# Fracture rows: per-column jagged depth so the bottom is broken, not flat.
+			# Each column has its own cutoff row driven by noise — pixels below it are
+			# transparent, giving the shard a genuinely shattered lower edge.
+			if y >= 16:
+				var col_depth_n := n.get_noise_2d(float(x) * 5.0, 400.0)  # -1..1
+				var col_bottom := 16 + int((col_depth_n * 0.5 + 0.5) * 3.0)  # 16..19
+				if y > col_bottom:
+					continue
 			var is_edge: bool = x == x1 or x == x2 - 1
 			var is_core: bool = y >= 6 and y <= 15 and x >= 3 and x <= 8 and \
 				n.get_noise_2d(float(x) * 0.6, float(y) * 0.6) > 0.0
@@ -699,3 +718,18 @@ func _make_noise(seed_val: int) -> FastNoiseLite:
 	n.seed = seed_val
 	n.frequency = 0.25
 	return n
+
+# Soft white glow circle for enemy pulse visuals. Tint via sprite.modulate.
+func generate_glow_texture(px_radius: int) -> ImageTexture:
+	var size := px_radius * 2
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	var c := Vector2(px_radius - 0.5, px_radius - 0.5)
+	for y in range(size):
+		for x in range(size):
+			var d := Vector2(x, y).distance_to(c)
+			if d <= px_radius:
+				var a := 1.0 - (d / px_radius)
+				a *= a
+				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
+	return ImageTexture.create_from_image(img)

@@ -163,26 +163,20 @@ func countered() -> void:
 		sprite.scale = _base_scale
 
 func _emit_pulse_visual() -> void:
-	var grad := GradientTexture2D.new()
-	grad.width = 48
-	grad.height = 48
-	var g := Gradient.new()
-	g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0)])
-	g.offsets = PackedFloat32Array([0.0, 1.0])
-	grad.gradient = g
-	grad.fill_to = Vector2(1, 1)
-	grad.fill = GradientTexture2D.FILL_RADIAL
-
+	var tex_radius := 24
+	var tex := PixelRenderer.generate_glow_texture(tex_radius)
 	var spr := Sprite2D.new()
-	spr.texture = grad
-	spr.modulate = Color(0.9, 0.2, 1.0, 0.7)
+	spr.texture = tex
+	spr.modulate = Color(0.9, 0.2, 1.0, 0.8)
 	spr.centered = true
 	spr.z_index = 10
 	add_child(spr)
 	spr.scale = Vector2.ZERO
-	var final_scale := PULSE_RADIUS / 24.0
+	var final_scale := PULSE_RADIUS / float(tex_radius)
 	var t := create_tween()
-	t.set_parallel(true)
+	# tween_property and parallel().tween_property run simultaneously.
+	# The callback is chained AFTER both finish — not set_parallel, which would
+	# fire queue_free at t=0 and destroy the sprite before it ever displayed.
 	t.tween_property(spr, "scale", Vector2(final_scale, final_scale), PULSE_VISUAL_DURATION)
-	t.tween_property(spr, "modulate:a", 0.0, PULSE_VISUAL_DURATION)
+	t.parallel().tween_property(spr, "modulate:a", 0.0, PULSE_VISUAL_DURATION)
 	t.tween_callback(spr.queue_free)
