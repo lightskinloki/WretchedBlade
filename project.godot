@@ -24,6 +24,7 @@ config/features=PackedStringArray("4.6", "Mobile")
 GameManager="*res://autoload/GameManager.gd"
 EssenceManager="*res://autoload/EssenceManager.gd"
 PixelRenderer="*res://autoload/PixelRenderer.gd"
+LockOn="*res://autoload/LockOn.gd"
 
 [display]
 

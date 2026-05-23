@@ -733,3 +733,24 @@ func generate_glow_texture(px_radius: int) -> ImageTexture:
 				a *= a
 				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 	return ImageTexture.create_from_image(img)
+
+# Small diamond reticle for lock-on targeting indicator.
+func generate_lockon_reticle() -> ImageTexture:
+	var size := 24
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+	var cx := size / 2.0
+	var cy := size / 2.0
+	for y in range(size):
+		for x in range(size):
+			var dx := absf(x - cx) - 0.5
+			var dy := absf(y - cy) - 0.5
+			var manhattan := dx + dy
+			if manhattan >= 7.0 and manhattan <= 11.0:
+				var a := 1.0
+				if manhattan < 8.0:
+					a = manhattan - 7.0
+				elif manhattan > 10.0:
+					a = 11.0 - manhattan
+				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a * 0.7))
+	return ImageTexture.create_from_image(img)

@@ -30,6 +30,8 @@ const WALK_POSE_INTERVAL := 0.18  # Seconds between walk pose swaps
 @onready var blade:       Node2D   = $WretchedBlade
 @onready var body_sprite: Sprite2D = $ProjectedBody/BodySprite
 @onready var camera:      Camera2D = $Camera2D
+@onready var _lock_on:    Node     = get_node("/root/LockOn")
+var _reticle:      Sprite2D = null
 
 # ── Input state (set by TouchInput.gd signals) ────────────────────────────────
 var input_move:          float = 0.0
@@ -38,6 +40,7 @@ var input_jump:          bool  = false
 var input_attack:        bool  = false
 var input_dodge:         bool  = false
 var input_counter:       bool  = false
+var input_lock_on:       bool  = false
 
 # ── Internal state ────────────────────────────────────────────────────────────
 var is_facing_right := true
@@ -62,6 +65,7 @@ var _is_countering := false
 var _last_attack_key  := false
 var _last_dodge_key   := false
 var _last_counter_key := false
+var _last_lock_key    := false
 
 # Pre-generated pose textures
 var _poses: Dictionary = {}  # Maps BodyPose enum to ImageTexture
@@ -81,6 +85,9 @@ func _ready() -> void:
 	add_to_group("player")
 	camera.add_to_group("camera")
 
+	_lock_on.target_locked.connect(_on_target_locked)
+	_lock_on.target_unlocked.connect(_on_target_unlocked)
+
 func _physics_process(delta: float) -> void:
 	if not GameManager.is_playing():
 		return
@@ -93,6 +100,13 @@ func _physics_process(delta: float) -> void:
 		_handle_movement()
 		_handle_attack(delta)
 		_handle_counter(delta)
+
+	if input_lock_on:
+		input_lock_on = false
+		if _lock_on.is_locked():
+			_lock_on.unlock()
+		else:
+			_lock_nearest()
 
 	move_and_slide()
 
@@ -109,6 +123,14 @@ func _physics_process(delta: float) -> void:
 	elif input_move < -0.01:
 		is_facing_right    = false
 		body_sprite.flip_h = true
+
+	if _lock_on.is_locked():
+		var dir: float = _lock_on.facing_dir(global_position)
+		if dir != 0.0:
+			is_facing_right = dir > 0.0
+			body_sprite.flip_h = not is_facing_right
+		if _reticle and _lock_on.get_target_node():
+			_reticle.global_position = _lock_on.get_target_node().global_position + Vector2(0, -40)
 
 func _handle_body_animation(delta: float) -> void:
 	var on_floor := is_on_floor()
@@ -325,6 +347,41 @@ func _read_keyboard_input() -> void:
 	if counter_down and not _last_counter_key:
 		input_counter = true
 	_last_counter_key = counter_down
+
+	var lock_down := Input.is_key_pressed(KEY_TAB)
+	if lock_down and not _last_lock_key:
+		input_lock_on = true
+	_last_lock_key = lock_down
+
+func _on_target_locked(_target: Node2D) -> void:
+	_reticle = Sprite2D.new()
+	_reticle.texture = PixelRenderer.generate_lockon_reticle()
+	_reticle.centered = true
+	_reticle.z_index = 100
+	add_child(_reticle)
+	var t := create_tween()
+	t.set_loops()
+	t.tween_property(_reticle, "scale", Vector2(1.3, 1.3), 0.6)
+	t.tween_property(_reticle, "scale", Vector2(0.9, 0.9), 0.6)
+
+func _on_target_unlocked() -> void:
+	if _reticle:
+		_reticle.queue_free()
+		_reticle = null
+
+func _lock_nearest() -> void:
+	var enemies := get_tree().get_nodes_in_group("enemy")
+	var nearest: Node2D = null
+	var nearest_dist := INF
+	for e in enemies:
+		if not is_instance_valid(e):
+			continue
+		var d := global_position.distance_squared_to(e.global_position)
+		if d < nearest_dist:
+			nearest_dist = d
+			nearest = e
+	if nearest != null:
+		_lock_on.lock_on(nearest)
 
 func set_move_input(dir: float)           -> void: input_move   = dir
 func set_move_vertical_input(dir: float)  -> void: input_move_vertical = dir

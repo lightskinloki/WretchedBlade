@@ -90,7 +90,7 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 	print("=== _load_room node=%d archetype=%s w=%d h=%d prev=%d ===" % [node_id, RoomArchetype.get_archetype_name(node.archetype), node.room_w, node.room_h, prev_node_id])
 
 	for child in world.get_children():
-		child.free()
+		child.queue_free()
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = current_seed + node_id

@@ -22,7 +22,7 @@ var _right_dbg: ColorRect
 var _left_dbg: ColorRect
 const _BLADE_HITBOX_SIZE := Vector2(18, 60)
 
-var _direction   := 1.0
+var _move_dir    := 1.0
 var _start_pos:  Vector2
 var _is_alive   := true
 var _attack_cd   := 0.0
@@ -65,7 +65,7 @@ var _l_angle := 0.0
 
 func _ready() -> void:
 	_start_pos = global_position
-	_direction  = 1.0 if randf() > 0.5 else -1.0
+	_move_dir = 1.0 if randf() > 0.5 else -1.0
 
 	_body = Sprite2D.new()
 	_body.name = "BodySprite"
@@ -165,7 +165,8 @@ func _set_blades_modulate(c: Color) -> void:
 		_blade_left.modulate = c
 
 func _set_blade_rest_positions() -> void:
-	var is_right := _direction > 0.0
+	var fdir := _facing_dir()
+	var is_right := fdir > 0.0
 	_rest_right_x = -14.0 if is_right else 14.0
 	_rest_left_x  =  14.0 if is_right else -14.0
 	if _blade_right:
@@ -179,17 +180,23 @@ func _set_blade_rest_positions() -> void:
 		_blade_left.position.y = _REST_Y
 		_blade_left.rotation_degrees = 0.0
 
+func _facing_dir() -> float:
+	if _player_ref and is_instance_valid(_player_ref):
+		return signf(_player_ref.global_position.x - global_position.x)
+	return _move_dir
+
 func _patrol(delta: float) -> void:
-	velocity.x = _direction * MOVE_SPEED
+	velocity.x = _move_dir * MOVE_SPEED
 	move_and_slide()
 
 	var dist: float = absf(global_position.x - _start_pos.x)
 	if dist >= PATROL_DIST:
-		_direction = -_direction
+		_move_dir = -_move_dir
 		_start_pos = global_position
 
+	var fdir := _facing_dir()
 	if _body:
-		_body.flip_h = _direction < 0.0
+		_body.flip_h = fdir < 0.0
 	_set_blade_rest_positions()
 
 func _check_chase() -> void:
@@ -208,9 +215,10 @@ func _chase(delta: float) -> void:
 	velocity.x = dir * MOVE_SPEED
 	move_and_slide()
 
+	_move_dir = dir
+	var fdir := _facing_dir()
 	if _body:
-		_body.flip_h = dir < 0.0
-	_direction = dir
+		_body.flip_h = fdir < 0.0
 	_set_blade_rest_positions()
 
 func _check_attack() -> void:
@@ -259,12 +267,12 @@ func _attack_process(delta: float) -> void:
 				_attack_finish()
 
 func _position_blades() -> void:
-	var dir := 1.0 if _direction > 0.0 else -1.0
+	var fdir := _facing_dir()
 
 	var rad := deg_to_rad(_r_angle)
 	var ox := cos(rad) * absf(data_r("r_radius", 20.0))
 	var oy := sin(rad) * absf(data_r("r_radius", 20.0))
-	if _direction < 0.0:
+	if fdir < 0.0:
 		ox = -ox
 	if _blade_right:
 		_blade_right.position = Vector2(ox, _REST_Y + oy)
@@ -273,7 +281,7 @@ func _position_blades() -> void:
 	rad = deg_to_rad(_l_angle)
 	ox = cos(rad) * absf(data_r("l_radius", 20.0))
 	oy = sin(rad) * absf(data_r("l_radius", 20.0))
-	if _direction < 0.0:
+	if fdir < 0.0:
 		ox = -ox
 	if _blade_left:
 		_blade_left.position = Vector2(ox, _REST_Y + oy)

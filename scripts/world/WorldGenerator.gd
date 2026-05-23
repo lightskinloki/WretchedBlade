@@ -241,7 +241,7 @@ func _add_exit_trigger(parent: Node2D) -> void:
 func _add_abyss_kill_trigger(parent: Node2D, room_w: int, room_h: int) -> void:
 	var area := Area2D.new()
 	area.name = "AbyssKillTrigger"
-	area.monitoring = true
+	area.monitoring = false  # Armed after a short delay so room-entry teleport can't false-trigger
 	area.monitorable = false
 	area.collision_mask = 4  # Detect player on layer 3
 
@@ -265,3 +265,8 @@ func _add_abyss_kill_trigger(parent: Node2D, room_w: int, room_h: int) -> void:
 	)
 
 	parent.add_child(area)
+
+	# Arm the kill zone after 5 physics frames so the player can settle after
+	# a room-entry teleport (Phase C can remove floor tiles the bridge doesn't refill).
+	var arm_timer := area.get_tree().create_timer(5.0 / 60.0)
+	arm_timer.timeout.connect(func(): if is_instance_valid(area): area.monitoring = true)
