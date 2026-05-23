@@ -1,0 +1,139 @@
+________________
+
+
+Level Design & World Structure
+In the Severed Lands, every region is a statement. The world is not a connected, seamless journey but rather a collection of contested territories, each ruled by a Dominator and defined by the unique Hex that scarred it. The player's progression through these regions is non-linear, driven by the Wretched Blade's hunt for the seven Dominators and the Tuning Forks they guard.
+
+________________
+
+
+The Seven Dominators & Their Regions
+The Severed Lands are divided into seven distinct regions, each corresponding to one of the seven Hexes that have ravaged the world. Each region is under the dominion of a single Dominator — an ancient, powerful Nullman who embodies that region's Hex and has spent eons accumulating power and territory. Defeating a Dominator weakens their grip on the region, shifting the balance of power and opening paths previously blocked by their influence.
+
+* Dominator 1: The Shattered Sovereign (Geocrash Hex)
+  * Region: The Fractured Yards
+  * Aesthetic: A landscape of cubic, angular ruins. Massive concrete and steel structures hang at unnatural angles, held by Hex-warped gravity. Platforms are jagged and unstable; the earth itself is fractured into columns and ravines. Color palette: grays, rust, dusty browns.
+  * Thematic Hex Family: Geocrash-based attacks. Enemies use lesser versions: basic ground fractures, rubble throws, destabilization effects.
+  * Mini-Bosses: 2-3 territorial lieutenants (Geocrash-aligned) guard sub-regions within the Yards.
+  * Tuning Fork Reward: The Fork of Stability — grants the Resonance Art "Earthward," a grounding ability that increases poise and reduces knockback.
+
+* Dominator 2: The Void Echo (Voidrend Hex)
+  * Region: The Hollow Expanse
+  * Aesthetic: A landscape where reality has been "scooped out." Jagged void-edges, floating islands of solid matter separated by empty space. The air feels thin and distorted. Gravity is unreliable. Color palette: blacks, deep purples, sickly greens, faint void-light.
+  * Thematic Hex Family: Voidrend-based attacks. Enemies use lesser versions: small existence distortions, localized voids, reality tears.
+  * Mini-Bosses: 2-3 creatures born from the Voidrend itself, protective entities that exist at the boundaries of reality.
+  * Tuning Fork Reward: The Fork of Severance — grants the Resonance Art "Untether," allowing brief periods of gravity-defiant movement.
+
+* Dominator 3: The Screaming Spire (Echoscream Hex)
+  * Region: The Resonant Ruins
+  * Aesthetic: A landscape of warped, impossibly tall towers that seem to warp sound itself. Walls are translucent and glitch-like; sound distorts vision. The environment actively disorients. Color palette: silvers, pale blues, whites with audiovisual glitch artifacts.
+  * Thematic Hex Family: Echoscream-based attacks. Enemies use lesser versions: sound-based stuns, disorientation waves, auditory attacks that cause visual distortion.
+  * Mini-Bosses: 2-3 resonance-aligned entities, possibly humanoid forms trapped within the towers.
+  * Tuning Fork Reward: The Fork of Clarity — grants the Resonance Art "Silence," which dampens environmental distortion and provides brief periods of focused perception.
+
+* Dominator 4: The Memory Thief (Memoreave Hex)
+  * Region: The Forgotten Archive
+  * Aesthetic: A landscape of libraries, monuments, and memory-warped structures. Reality "glitches" and shifts based on memory corruption. The same room can appear different depending on perspective. Visuals include distorted architecture, temporal echoes, and fragmented imagery. Color palette: faded sepia, washed grays, ghostly whites.
+  * Thematic Hex Family: Memoreave-based attacks. Enemies use lesser versions: memory corruption (disabling abilities temporarily), temporal distortion (slowing or fast-forwarding the player), identity confusion (swapping controls).
+  * Mini-Bosses: 2-3 entities bound to specific memories, possibly echoes of past civilizations.
+  * Tuning Fork Reward: The Fork of Continuity — grants the Resonance Art "Anchor," which provides temporary immunity to temporal/memory distortion.
+
+* Dominator 5: The Nullpulse Heart (Nullpulse Hex)
+  * Region: The Unraveling Core
+  * Aesthetic: A landscape where the Nullpulse itself is visibly unraveling. The ground is unstable and fragmenting. Energy crackles at the edges of reality. The world feels like it's actively collapsing. Color palette: violent purples, blacks, electric blues, sickly greens.
+  * Thematic Hex Family: Raw Nullpulse instability. Enemies use lesser versions: spontaneous environmental collapse, raw energy blasts, Essence drains.
+  * Mini-Bosses: 2-3 creatures that have become one with the Nullpulse, barely maintaining form.
+  * Tuning Fork Reward: The Fork of Continuity — grants the Resonance Art "Endure," which provides brief resistance to environmental collapse.
+
+* Dominator 6: The Rust Tyrant (Technomantic Corruption)
+  * Region: The Corroded Expanse
+  * Aesthetic: A landscape of rusted machinery, decaying technology, and bio-mechanical corruption. The remains of a once-technological civilization, now overtaken by Nullpulse influence. Environments are a mixture of industrial decay and organic growth. Color palette: deep oranges, rust reds, sickly greens, blacks.
+  * Thematic Hex Family: Technomantic-derived attacks. Enemies use lesser versions: corrosion fields, mechanical projectiles, bio-technological blasts.
+  * Mini-Bosses: 2-3 hybrid entities — part machine, part Nullman, part corrupted human.
+  * Tuning Fork Reward: The Fork of Adaptation — grants the Resonance Art "Transmute," allowing brief defensive form-shifts.
+
+* Dominator 7: The Final Echo (The Wretched Blade's Inverse)
+  * Region: The Throne of Ashes
+  * Aesthetic: The heart of the Severed Lands, where the Wretched Blade's power is strongest and weakest. A landscape of ash, bone, and the echoes of all prior Hexocausts. Visually it mirrors and distorts all previous regions. Color palette: monochromatic grays, deep blacks, and stark whites.
+  * Thematic Hex Family: Composite — draws from all seven Hexes, reflecting the Wretched Blade's unique origin.
+  * Mini-Bosses: None — this region is the final confrontation.
+  * Tuning Fork Reward: The Fork of Origin — grants access to the "Grand Resonance," the ultimate Resonance Art.
+
+________________
+
+
+Room Types & Flow
+The Severed Lands are divided into discrete "rooms" — self-contained 2D side-scrolling spaces connected by exits. Each room is one of several types, and their arrangement creates a natural flow and pacing structure.
+
+* Combat Rooms: Arenas with 1-4 mid-tier enemies (Raiders, Enforcers, Stalkers). These rooms are heavily populated and demand active combat. The room is clear only when all enemies are defeated.
+  * Exits: Combat rooms typically lead to Exploration or Transition rooms, allowing players to progress after a challenge.
+  * Essence Reward: Enemies drop Essence — the primary resource for healing, buying items, and unlocking Lesser Hexes.
+  * Difficulty: Moderate. Designed to be surmountable by an attentive player with basic equipment.
+
+* Exploration Rooms: Sparsely populated or empty spaces with environmental hazards, secret alcoves, and resource nodes (Essence Pores, Weapon Form Fragments, item caches). These rooms reward careful attention and risk-taking.
+  * Exits: Exploration rooms typically branch into multiple paths, providing non-linear choice. Some exits are hidden or require specific actions to unlock.
+  * Lore Reward: Environmental storytelling — fallen structures, corpses, inscriptions, and subtle visual clues hinting at the region's history and the Dominator's influence.
+  * Difficulty: Low to moderate. Environmental hazards (spikes, pits, falling debris) are the primary threat, not enemy density.
+
+* Transition Rooms: Visually distinct "interlude" spaces between combat-heavy and exploration-heavy areas. These rooms establish atmosphere and provide narrative breathing room.
+  * Exits: Usually linear, leading to a specific next room (either a boss arena or a major exploration branch).
+  * Hazard Reward: May contain a single resource node or a minor enemy encounter.
+  * Difficulty: Very low. These are pacing tools, not difficulty gates.
+
+* Boss Arenas: Large, open chambers reserved for Mini-World Bosses and Dominators. These rooms are visually distinct and architecturally designed to showcase the boss's power.
+  * Exits: Typically one entry and one exit (locked until the boss is defeated). Some boss arenas may have a Tuning Fork checkpoint at the exit.
+  * Boss Reward: Defeating a Dominator grants the player a significant Essence reward and access to a Tuning Fork (and thus a Resonance Art).
+  * Difficulty: High. These are skill-check moments, requiring mastery of combat mechanics.
+
+* Safe Rooms (Sanctuaries): Checkpoints with a Tuning Fork and no enemies. These rooms are small, visually calm, and serve as respawn points. The player can rest here, attune to a different Resonance Art, and prepare for the next challenge.
+  * Exits: Sanctuaries are typically placed before major boss arenas or at the start of new regions.
+  * Lore Reward: May contain cryptic NPCs (Custodians) offering hints about the region or the Dominators.
+  * Difficulty: None. Pure safe space.
+
+________________
+
+
+Non-Linear Progression Structure
+The Severed Lands are not a linear hallway. Instead, they form a loosely interconnected web of regions and rooms, allowing players to approach Dominators in any order. The world is designed with natural "gates" that prevent sequence-breaking while still allowing freedom of choice.
+
+* Region Entry Points: Each region is accessed via a specific Entry Room (often a Transition Room at the border). To reach a region, the player must navigate to its entry from another region or from the central Hub.
+
+* The Hub (Optional): A central safe room that connects to all seven regions. This serves as a natural waypoint and allows players to choose their path. (Alternatively, regions can be accessed through environmental connections without a central hub, creating a more organic web structure.)
+
+* Escape Valves: If a player encounters a Dominator and is underpowered, they can retreat and explore other regions, gathering Essence, new Weapon Forms, and Resonance Arts before returning stronger. This prevents the game from feeling punitive.
+
+* Gating Mechanics (Subtle): Some exits are blocked by environmental conditions (e.g., a Geocrash-scarred gap that requires the "Stability" Resonance Art to cross) or by Dominator-aligned enemies who only retreat after the Dominator is defeated. This creates a natural progression incentive without hard locks.
+
+________________
+
+
+Pacing & Density
+Each region contains approximately 8-12 rooms, divided roughly as:
+* 3-4 Combat Rooms
+* 3-4 Exploration Rooms
+* 1-2 Transition Rooms
+* 1 Boss Arena
+* 1 Sanctuary (checkpoint)
+
+This ensures a rhythm of: Combat → Exploration → Transition → Boss, with Safe Rooms placed strategically to prevent frustration.
+
+Within each room:
+* Combat Rooms: ~1 enemy per 100 pixels of horizontal space (1-4 enemies in typical ~400px wide room)
+* Exploration Rooms: ~0-1 enemy per room, heavy environmental hazard emphasis
+* Boss Arenas: 1 single, powerful foe with distinct attack patterns and visual telegraphs
+
+________________
+
+
+Visual & Atmospheric Progression
+Each region should feel visually distinct while maintaining the overall grim, desolate aesthetic. The progression through regions should feel like a descent into deeper, more corrupted layers of the Severed Lands:
+
+1. The Fractured Yards (Geocrash): Industrial decay, cubist geometry, rust and concrete.
+2. The Hollow Expanse (Voidrend): Unsettling, reality-bending, sparse and isolating.
+3. The Resonant Ruins (Echoscream): Glitch-like, tower-heavy, audiovisual distortion.
+4. The Forgotten Archive (Memoreave): Fractured temporality, library aesthetics, ghostly echoes.
+5. The Unraveling Core (Nullpulse): Raw, chaotic, violently collapsing.
+6. The Corroded Expanse (Technomantic): Bio-mechanical fusion, rust and organic growth.
+7. The Throne of Ashes (Composite): A mirror-world reflecting all previous regions, culminating in starkness.
+
+________________

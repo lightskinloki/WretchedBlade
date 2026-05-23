@@ -1,0 +1,292 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scenes/game/Game.gd" id="1_game"]
+[ext_resource type="Script" path="res://scripts/player/Player.gd" id="2_player"]
+[ext_resource type="Script" path="res://scripts/player/WretchedBlade.gd" id="3_blade"]
+[ext_resource type="Script" path="res://scripts/ui/TouchInput.gd" id="4_touch"]
+[ext_resource type="Script" path="res://scripts/ui/HUD.gd" id="5_hud"]
+[ext_resource type="Script" path="res://scripts/ui/DeathScreen.gd" id="6_death"]
+[ext_resource type="Script" path="res://scripts/ui/TransitionScreen.gd" id="7_transition"]
+
+[sub_resource type="RectangleShape2D" id="Shape_player"]
+size = Vector2(20.0, 40.0)
+
+[sub_resource type="RectangleShape2D" id="Shape_hitbox"]
+size = Vector2(8.0, 28.0)
+
+; ══════════════════════════════════════════════
+;  ROOT
+; ══════════════════════════════════════════════
+[node name="Game" type="Node2D"]
+script = ExtResource("1_game")
+
+[node name="World" type="Node2D" parent="."]
+
+; ══════════════════════════════════════════════
+;  PLAYER  (the Projected Body)
+; ══════════════════════════════════════════════
+[node name="Player" type="CharacterBody2D" parent="."]
+position = Vector2(200.0, 700.0)
+script = ExtResource("2_player")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+shape = SubResource("Shape_player")
+
+[node name="ProjectedBody" type="Node2D" parent="Player"]
+
+[node name="BodySprite" type="Sprite2D" parent="Player/ProjectedBody"]
+
+; The Wretched Blade — the TRUE self, child of the projected body
+[node name="WretchedBlade" type="Node2D" parent="Player"]
+position = Vector2(16.0, -20.0)
+script = ExtResource("3_blade")
+
+[node name="BladeSprite" type="Sprite2D" parent="Player/WretchedBlade"]
+
+[node name="AttackHitbox" type="Area2D" parent="Player/WretchedBlade"]
+position = Vector2(0.0, -10.0)
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player/WretchedBlade/AttackHitbox"]
+shape = SubResource("Shape_hitbox")
+
+[node name="Camera2D" type="Camera2D" parent="Player"]
+zoom = Vector2(2.0, 2.0)
+
+; ══════════════════════════════════════════════
+;  TOUCH INPUT  (virtual joystick + buttons)
+;  Left half  = joystick zone
+;  Right half = button zone
+; ══════════════════════════════════════════════
+[node name="TouchInput" type="CanvasLayer" parent="."]
+layer = 10
+script = ExtResource("4_touch")
+
+; ── Left half: joystick ──────────────────────
+[node name="JoystickZone" type="Control" parent="TouchInput"]
+anchor_right = 0.5
+anchor_bottom = 1.0
+mouse_filter = 2
+
+; JoystickBase is hidden until a finger lands; positioned by TouchInput.gd at runtime
+[node name="JoystickBase" type="Control" parent="TouchInput/JoystickZone"]
+visible = false
+offset_right = 128.0
+offset_bottom = 128.0
+
+[node name="BaseVisual" type="ColorRect" parent="TouchInput/JoystickZone/JoystickBase"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.15, 0.1, 0.25, 0.45)
+mouse_filter = 2
+
+[node name="Thumb" type="Control" parent="TouchInput/JoystickZone/JoystickBase"]
+offset_left = 40.0
+offset_top = 40.0
+offset_right = 88.0
+offset_bottom = 88.0
+
+[node name="ThumbVisual" type="ColorRect" parent="TouchInput/JoystickZone/JoystickBase/Thumb"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.45, 0.25, 0.7, 0.8)
+mouse_filter = 2
+
+; ── Right half: buttons ───────────────────────
+[node name="ButtonZone" type="Control" parent="TouchInput"]
+anchor_left = 0.5
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+; ATTACK — bottom-right, primary thumb resting position
+[node name="AttackButton" type="Control" parent="TouchInput/ButtonZone"]
+offset_left = 332.0
+offset_top = 300.0
+offset_right = 412.0
+offset_bottom = 380.0
+
+[node name="AttackBG" type="ColorRect" parent="TouchInput/ButtonZone/AttackButton"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.55, 0.1, 0.12, 0.7)
+mouse_filter = 2
+
+[node name="AttackLabel" type="Label" parent="TouchInput/ButtonZone/AttackButton"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "ATK"
+
+; JUMP — above ATK, upper-right cluster
+[node name="JumpButton" type="Control" parent="TouchInput/ButtonZone"]
+offset_left = 290.0
+offset_top = 210.0
+offset_right = 370.0
+offset_bottom = 290.0
+
+[node name="JumpBG" type="ColorRect" parent="TouchInput/ButtonZone/JumpButton"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.1, 0.3, 0.48, 0.7)
+mouse_filter = 2
+
+[node name="JumpLabel" type="Label" parent="TouchInput/ButtonZone/JumpButton"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "JMP"
+
+; DODGE — left of ATK, quick thumb slide
+[node name="DodgeButton" type="Control" parent="TouchInput/ButtonZone"]
+offset_left = 242.0
+offset_top = 300.0
+offset_right = 322.0
+offset_bottom = 380.0
+
+[node name="DodgeBG" type="ColorRect" parent="TouchInput/ButtonZone/DodgeButton"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.32, 0.1, 0.52, 0.7)
+mouse_filter = 2
+
+[node name="DodgeLabel" type="Label" parent="TouchInput/ButtonZone/DodgeButton"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "DGE"
+
+; ══════════════════════════════════════════════
+;  HUD  (essence count + weapon form name)
+;  Note: no health bar — the blade sprite IS the health bar.
+; ══════════════════════════════════════════════
+[node name="HUD" type="CanvasLayer" parent="."]
+layer = 5
+script = ExtResource("5_hud")
+
+[node name="EssenceLabel" type="Label" parent="HUD"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 180.0
+offset_bottom = 38.0
+text = "0  ESS"
+
+[node name="FormLabel" type="Label" parent="HUD"]
+offset_left = 352.0
+offset_top = 10.0
+offset_right = 492.0
+offset_bottom = 38.0
+horizontal_alignment = 1
+text = "EXECUTIONER"
+
+[node name="LostEssenceLabel" type="Label" parent="HUD"]
+visible = false
+offset_left = 654.0
+offset_top = 10.0
+offset_right = 834.0
+offset_bottom = 38.0
+horizontal_alignment = 2
+text = ""
+
+[node name="ComboLabel" type="Label" parent="HUD"]
+visible = false
+offset_left = 372.0
+offset_top = 100.0
+offset_right = 472.0
+offset_bottom = 150.0
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 28
+text = ""
+
+; ══════════════════════════════════════════════
+;  DEATH SCREEN
+;  Hidden by default; shown when the blade shatters.
+;  Hold to reconstitute = hold your thumb on screen for 1.5s.
+; ══════════════════════════════════════════════
+[node name="DeathScreen" type="CanvasLayer" parent="."]
+visible = false
+layer = 20
+script = ExtResource("6_death")
+
+; Semi-transparent black overlay — blocks touch to the game world
+[node name="Background" type="ColorRect" parent="DeathScreen"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.0, 0.0, 0.0, 0.62)
+mouse_filter = 0
+
+[node name="YouDiedLabel" type="Label" parent="DeathScreen"]
+offset_left = 272.0
+offset_top = 145.0
+offset_right = 572.0
+offset_bottom = 210.0
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 42
+text = "YOU DIED"
+modulate = Color(1, 1, 1, 0)
+
+[node name="HoldPrompt" type="Label" parent="DeathScreen"]
+offset_left = 252.0
+offset_top = 220.0
+offset_right = 592.0
+offset_bottom = 252.0
+horizontal_alignment = 1
+text = "Hold to Reconstitute"
+modulate = Color(1, 1, 1, 0)
+
+[node name="HoldBar" type="ProgressBar" parent="DeathScreen"]
+offset_left = 222.0
+offset_top = 262.0
+offset_right = 622.0
+offset_bottom = 285.0
+max_value = 100.0
+value = 0.0
+show_percentage = false
+
+; Full-screen purple flash during reconstitution animation
+[node name="FlashRect" type="ColorRect" parent="DeathScreen"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.4, 0.0, 0.7, 0.0)
+mouse_filter = 2
+
+; ══════════════════════════════════════════════
+;  TRANSITION SCREEN
+;  Handles room transition fade + purple flash.
+;  mouse_filter = 2 so touch passes through to game world.
+; ══════════════════════════════════════════════
+[node name="TransitionScreen" type="CanvasLayer" parent="."]
+visible = true
+layer = 25
+script = ExtResource("7_transition")
+
+; Solid black overlay for fades
+[node name="BlackOverlay" type="ColorRect" parent="TransitionScreen"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.0, 0.0, 0.0, 1.0)
+mouse_filter = 2
+
+; Purple flash pulse during transition
+[node name="FlashRect" type="ColorRect" parent="TransitionScreen"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.5, 0.0, 0.8, 1.0)
+mouse_filter = 2
+
+; Room number label displayed briefly during transition
+[node name="RoomLabel" type="Label" parent="TransitionScreen"]
+offset_left = 332.0
+offset_top = 175.0
+offset_right = 512.0
+offset_bottom = 215.0
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 32
+text = ""
+modulate = Color(1, 1, 1, 0)
+mouse_filter = 2

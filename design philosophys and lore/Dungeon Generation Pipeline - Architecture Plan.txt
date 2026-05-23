@@ -1,0 +1,611 @@
+Dungeon Generation Pipeline — Architecture Plan
+
+Revision notes:
+- 2026-05-21: Initial plan
+- 2026-05-21: v2 — portals unified, archetype slot system added, dead_end traversal clarified
+
+
+================================================================================
+I. PROBLEMS WITH THE CURRENT SYSTEM
+================================================================================
+
+Fixed template:       Every room is 44x22 tiles with floor at row 18.
+                      No variance in shape or size.
+Hardcoded doorways:   Entry at columns 0-1, exit at columns 42-43.
+                      Always left-ground and right-ground.
+Random scatter:       Platforms, nullstone, pits placed by random range
+                      within ROOM_W - 3. No structural purpose.
+hex_theme dormant:    Stored as a string, never read by the generator.
+                      Regions differ only by palette, never by structural feel.
+Linear room list:     Dungeon is an ordered array. No branching, no dead-ends,
+                      no shortcuts, no meaningful backtracking.
+No archetype system:  No concept of what a room WAS — guard post, bridge span,
+                      vault, collapsed hall. All rooms fight identically.
+
+
+================================================================================
+II. DESIGN INVARIANTS (from the Finite Design Philosophy)
+================================================================================
+
+IV  — Standalone Encounter:  Every room must be worth 30 seconds in isolation.
+V   — Architectural Design:  Geometry communicates purpose. The player reads
+      the space and understands its structural logic.
+III — Core Verb Ecosystem:   Navigation is a verb. Exploring branches and
+      dead-ends triggers systemic reactions.
+VI  — Mystery Through Restraint: Lore and secrets are implied, never explained.
+      Dead-ends teach through absence — the jarring emptiness signals content.
+VIII — Earned, Not Bought:   Secrets are never marked. The player earns
+      discovery by learning to read the architecture.
+
+Sub-rule (VIII): Every TRUE_DEAD_END ALWAYS contains content (SECRET_BOSS or
+SECRET_REWARD). If dead-ends were sometimes empty, the player would learn to
+ignore them. The invariant is what makes the signal teachable.
+
+
+================================================================================
+III. CORE DATA MODEL
+================================================================================
+
+3.1  RoomArchetype enum
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+Every room is assigned an archetype by the dungeon generator. The archetype
+drives structural skeleton, portal slot definitions, and decoration budget.
+
+enum RoomArchetype {
+  GUARD_POST,      # Combat — raised sentry, choke at entrance, collapsed rear
+  BRIDGE_SPAN,     # Combat/Transition — narrow, spanning gap, variable height
+  STORAGE_VAULT,   # Exploration — wide, pillars, alcoves, hidden pockets
+  RITUAL_CHAMBER,  # Puzzle/Boss — central focal point, structured geometry
+  COLLAPSED_HALL,  # Combat — rubble heaps as platforms, blocked sightlines
+  WATCHTOWER,      # Transition — vertical climb, windows to void
+  QUARRY,          # Combat — open horizontal, waist-high cover, edge pits
+  SANCTUARY,       # Safe — small, minimal, clear sightlines, calm geometry
+}
+
+Archetype inventory:
+  GUARD_POST      — universal, combat
+  BRIDGE_SPAN     — universal, combat/transition
+  STORAGE_VAULT   — universal, exploration
+  RITUAL_CHAMBER  — universal, puzzle/boss
+  SANCTUARY       — universal, safe
+  COLLAPSED_HALL  — regional (Geocrash first), combat
+  WATCHTOWER      — regional (Geocrash first), transition
+  QUARRY          — regional (Geocrash first), combat
+
+3.2  PortalSlot — static archetype definition
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+Each archetype defines valid portal slots statically, independent of any
+specific room instantiation. Pass 1 queries these before wiring edges.
+
+class PortalSlot:
+  var side: String         # "left", "right", "top", "bottom"
+  var height: String       # "ground", "mid", "high" — vertical band
+  var slot_id: String      # e.g. "left-ground", "right-mid"
+  var tile_width: int      # how many tiles wide the doorway is (typically 2)
+  var tile_height: int     # how many tiles tall the doorway is (typically 5)
+
+  # Returns the tile position within the room for a given room width/height.
+  # Computed at Pass 2 time when room dimensions are known.
+  func get_tile_position(room_w: int, room_h: int) -> Vector2i
+
+Example — GUARD_POST:
+  valid_slots = [
+    PortalSlot("left", "ground", "left-ground", 2, 5),
+    PortalSlot("right", "mid", "right-mid", 2, 5),
+  ]
+
+Example — BRIDGE_SPAN:
+  valid_slots = [
+    PortalSlot("left", "ground", "left-ground", 2, 5),
+    PortalSlot("right", "ground", "right-ground", 2, 5),
+    PortalSlot("left", "mid", "left-mid", 2, 5),
+    PortalSlot("right", "mid", "right-mid", 2, 5),
+  ]
+
+Static query function:
+  RoomArchetype.get_available_portal_slots(archetype: int) -> Array[PortalSlot]
+
+3.3  PortalData — runtime portal instance
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+class PortalData:
+  var slot_id: String          # matches a PortalSlot.slot_id from the archetype
+  var connected_node: int      # destination room node_id in the graph
+  var is_open: bool            # set false by generator, toggled by puzzle
+  var locked_by_room: int      # -1 if unlocked
+
+  # Resolved at Pass 2 time (computed from slot + room dimensions):
+  var world_position: Vector2  # pixel position of the doorway center
+
+3.4  RoomSpec — per-room data structure
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+class RoomSpec:
+  # Identity
+  var node_id: int
+  var archetype: RoomArchetype
+  var dimensions: Vector2i         # width x height in tiles
+  var section: String              # "approach", "puzzle", "exploration", etc.
+  var room_type: String            # "combat", "exploration", "puzzle", "boss",
+                                   # "reward", "safe"
+
+  # Graph
+  var dead_end: DeadEndType
+  var secret_content: SecretContent
+  var secret_trigger: SecretTrigger
+
+  # Portals — unified array. Every portal is inherently bidirectional.
+  # The player enters this room from one portal and may leave through any
+  # portal. TRUE_DEAD_END rooms have exactly 1 portal (the return path).
+  var portals: Array[PortalData]
+
+  # Puzzle wiring
+  var has_trigger: bool
+  var trigger_type: String
+  var door_locked: bool
+  var locked_by_room: int
+
+  # Enemy data
+  var enemies: Dictionary          # {"nullman": int, "rival": int}
+  var has_champion: bool
+  var is_boss_room: bool
+  var is_last_room: bool
+
+  # Generation
+  var skeleton_seed: int
+
+3.5  DeadEndType / SecretContent / SecretTrigger
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+enum DeadEndType { NONE, TRUE_DEAD_END }
+enum SecretContent { NONE, SECRET_BOSS, SECRET_REWARD }
+enum SecretTrigger { NONE, PRESSURE_PLATE, BREAK_WALL, DEFEAT_ALL, STAND_ON_TILE }
+
+NONE trigger = content visible immediately (treasure in plain sight).
+
+3.6  DungeonGraph — replaces the flat room array
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+class DungeonGraph:
+  var nodes: Dictionary        # node_id -> RoomSpec
+  var entry_node: int          # starting room node_id
+  var exit_node: int           # terminal reward room node_id
+  var seed: int
+  var is_boss_dungeon: bool
+  var hex_theme: String
+
+  # Traversal note: all edges are inherently bidirectional.
+  # A portal connects two rooms. Walking through a portal from either side
+  # resolves connected_node to find the destination. The graph stores no
+  # separate "edge" list — edges are implicit in portal connectivity.
+  # Game.gd finds the portal where connected_node == previous_node_id to
+  # determine spawn position on room load.
+
+Generator invariants (hard-enforced):
+  1. Every room has an archetype. No fallback to generic box.
+  2. Every TRUE_DEAD_END has secret_content != NONE.
+  3. Every TRUE_DEAD_END has exactly 1 portal (the return path to parent).
+  4. Critical path rooms never have dead_end = TRUE_DEAD_END.
+  5. The entry node has no portals connecting from outside the graph
+     (entry is special — player spawns from region map).
+  6. The exit node has exactly 1 portal (entry from climax).
+  7. All critical-path rooms are reachable from entry_node without passing
+     through any dead-end.
+  8. Every node is reachable from entry_node through at least one traversal
+     path (may pass through dead-ends on the way to non-dead-end branches).
+  9. Portal edges only connect compatible slots
+     (left/ground <-> right/ground, left/mid <-> right/mid, etc.).
+  10. No two portals connect the same pair of rooms in the same direction.
+
+
+================================================================================
+IV. GENERATION PIPELINE
+================================================================================
+
+4.1  PASS 1 — Graph Plan (DungeonGenerator)
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+Produces a DungeonGraph with all nodes, portals, and edges resolved, before
+any terrain is generated.
+
+Step 1 — Section breakdown. Same 5-beat structure:
+  Approach -> Puzzle -> Exploration -> Setback -> Climax -> Reward
+
+Step 2 — Critical path. Generate the mandatory sequence. This is the path
+  the player can always follow to beat the dungeon without any branches.
+
+Step 3 — Branch overlay. For each section (except Reward), generate optional
+  branch nodes:
+    Approach:     0-1 branch (SECRET_REWARD — essence cache, teaches pattern)
+    Puzzle:       0 branches (self-contained)
+    Exploration:  1-3 branches (mix SECRET_BOSS and SECRET_REWARD)
+    Setback:      0-1 branch (SECRET_BOSS — punishes overconfident explorers)
+    Climax:       0 branches (boss mandatory)
+    Reward:       0 branches (terminal)
+  All branch nodes are TRUE_DEAD_END — exactly 1 portal back to parent.
+
+Step 4 — Archetype assignment. Each node gets an archetype based on section,
+  room_type, and hex_theme. A combat room in Geocrash exploration might be
+  COLLAPSED_HALL. A universal combat room defaults to GUARD_POST.
+
+Step 5 — Portal slot matching. For each edge, Pass 1 queries
+  RoomArchetype.get_available_portal_slots() for both source and destination
+  archetypes. It then matches compatible slots:
+  - Left <-> Right (horizontal connections)
+  - Top <-> Bottom (vertical connections)
+  - Height bands must align (ground<->ground, mid<->mid, high<->high)
+  If no compatible slots exist, the generator picks a different archetype
+  or rewires the edge. This prevents the Pass 1 / Pass 2 dependency loop.
+
+Step 6 — Portal creation. For each matched edge, create PortalData entries
+  in both rooms with slot_id and connected_node set. The slot_id drives
+  Pass 2's doorway carving.
+
+4.2  PASS 2 — Room Terrain Generation (RoomTerrainGenerator)
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+New file, split from WorldGenerator.
+
+Input:  archetype, dimensions, theme, skeleton_seed, portals
+Output: grid (2D tile array)
+
+Phase A — Determine bounds. Dimensions per archetype x difficulty.
+  GUARD_POST:    36-48 wide x 18-24 tall
+  BRIDGE_SPAN:   50-70 wide x 14-18 tall
+  STORAGE_VAULT: 40-56 wide x 20-28 tall
+  RITUAL_CHAMBER:32-44 wide x 20-26 tall
+  COLLAPSED_HALL:38-50 wide x 18-22 tall
+  WATCHTOWER:    20-30 wide x 28-40 tall
+  QUARRY:        44-60 wide x 16-22 tall
+  SANCTUARY:     20-30 wide x 16-20 tall
+  Archetype sets baseline; difficulty scales width upward.
+
+Phase B — Room construction (portal-anchored). Every room is built
+  from its portal positions outward. Portals are the ONLY anchor points.
+  Construction proceeds in order:
+    1. Place portal floors (2 tiles deep at each portal's base)
+    2. Construct a walkable path connecting all portal floors
+    3. Add archetype character elements that CANNOT intersect the path
+    4. All additions are relative to random rolls, portal positions,
+       and room dimensions — never to fixed ratios or constants.
+
+  Rule for every archetype:
+    - Start with the entry portal position and the exit portal position.
+      These are the ONLY guaranteed coordinates.
+    - If portals are at different heights, build ramps or stepped
+      platforms between them. Step heights, widths, and positions
+      are randomized within bounds that GUARANTEE reachability.
+    - If portals are at the same height, build a floor between them.
+      Floor edges may be irregular, crumbling, or overlapped by
+      archetype features — but the core path must be solid.
+    - Archetype character elements (rubble, pillars, alcoves,
+      platforms) are placed AFTER the path is secure, at random
+      positions that never intersect portal doorways or the path.
+
+Phase C — Archetype character. Apply archetype-specific structural rules
+  that add geometry without blocking portal-constructed paths:
+  GUARD_POST: Add 1-3 random overhang platforms at path edges. Add rubble
+    piles at random positions not on the path. Optional raised guard zone
+    near the exit portal (elevation step up, varied height and width).
+  BRIDGE_SPAN: Add random support pillars at positions that don't intersect
+    the path. 1-2 random gaps in the floor (jump-across, not fall-to-death).
+    Partial bridge collapse at random section.
+  COLLAPSED_HALL: Rubble heaps at random positions off the main path.
+    Random ceiling debris at varying positions and counts. Optional partial
+    wall blocking a side alcove (breakable, not structural).
+  SANCTUARY: Decorative edge platforms only. Nothing on the main path.
+  STORAGE_VAULT: Random pillars at random intervals (not fixed spacing).
+    Platform shelves at random heights and positions in alcoves between
+    pillars. Optional hidden pocket behind a random pillar.
+  RITUAL_CHAMBER: Central elevated structure of random width (3-7 tiles)
+    and height (1-3 tiers) at a random position along the path. Steps on
+    1-2 randomly chosen sides. Random corner alcoves (may be absent).
+  WATCHTOWER: Zigzag platforms at random heights alternating left/right.
+    Random window gaps in side walls. Top platform at variable height.
+  QUARRY: Random waist-high cover walls at random positions (2-4 pieces).
+    Random edge pits at random floor positions (off the main path).
+
+Phase D — Portal carving. For each portal in the RoomSpec, look up its
+  slot_id, get the tile_position from the PortalSlot definition, and carve
+  the doorway (2 wide x 5 tall) at that position. TRUE_DEAD_END has 1 portal
+  (entry/return) — only 1 doorway carved. Entries with no special portal have
+  none (the entry from the region map is placed on the left wall by default).
+
+Phase E — Decoration pass. Nullstone, pits, checkpoints placed at random
+  positions that carry structural purpose. Every decoration contributes to
+  the room's story; none blocks the path.
+  GUARD_POST: nullstone at random floor position near a wall, random pit
+    at any path-adjacent edge, checkpoint at path midpoint (if applicable).
+  BRIDGE_SPAN: nullstone on bridge anchors, random small pits in bridge
+    segments (gap widened, not a new hole).
+  SANCTUARY: nullstone in a small corner cluster, no pits.
+  STORAGE_VAULT: nullstone in alcoves, random pit near a pillar base.
+  RITUAL_CHAMBER: nullstone at the base of the central structure,
+    random small pits near walls (not on path).
+  COLLAPSED_HALL: nullstone in rubble pile centers, random pit at
+    path edges where the floor has collapsed.
+  WATCHTOWER: nullstone on mid-height platforms, no pits.
+  QUARRY: nullstone behind cover walls, random pits as part of the
+    existing edge pit system.
+  All decoration positions are randomized within bounds that guarantee
+  they never intersect portal doorways or the constructed path.
+
+Phase F — Theme modifier. The hex theme runs a shape modifier pass after
+  all archetype rules are applied.
+
+  Geocrash:    Fracture straight edges into angular breaks. Replace some FLOOR
+               with PLATFORM at collapse points. Add WALL rubble chunks.
+  Voidrend:    Scoop random floor tiles near edges. Add thin walkways with
+               gaps on both sides. Darken floor near void edges.
+  Echoscream:  Replace tile ID at noise peaks with glitch variant. Add
+               translucent wall segments. Distort platform edges.
+  Memoreave:   Duplicate a section of the skeleton and overlay it offset.
+               Add "memory echo" tiles with reduced collision.
+  Nullpulse:   Add crack glow tiles along stress lines. Replace some WALL
+               with NULLSTONE. Add energy fissures across floor.
+  Technomantic:Replace some FLOOR with platform variants. Add grid patterns.
+               Place mechanical pillar tiles at regular intervals.
+  Composite:   Apply 2-3 modifiers in sequence at reduced intensity. Final
+               region only.
+
+4.3  PASS 3 — Build Scene (WorldGenerator.build_room)
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+Updated to handle variable-size grids and to read portal positions from
+PortalData rather than from ROOM_W / ROOM_H constants.
+
+- Removed: generate_room(), generate_room_from_spec(), ROOM_W, ROOM_H
+- Removed: _add_exit_trigger(), _add_abyss_kill_trigger()
+- Kept: build_room(grid, parent) — only sprite + collision + checkpoint
+- Kept: enemy spawning (spawn_enemies_from_spec)
+- Kept: add_abyss_kill_trigger(parent) — public, called from Game.gd
+- build_room reads grid.size() for rows and grid[0].size() for columns.
+  No fixed constants.
+
+4.4  PASS 4 — Game Lifecycle (Game.gd)
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+_load_room(room_spec: RoomSpec, previous_node_id: int):
+  - Clear world children
+  - Generate grid via RoomTerrainGenerator
+  - Build scene via WorldGenerator.build_room
+  - Spawn enemies
+  - Place puzzle triggers
+  - Place exit wall+prompt at each portal in room_spec.portals
+  - Add abyss kill trigger
+  - Find the portal where connected_node == previous_node_id
+  - Spawn player at that portal's world_position
+
+  If previous_node_id == -1 (entry from region map), spawn at the first
+  portal or at a default left-wall position.
+
+_on_room_exit_attempt(room_node_id: int, portal_index: int):
+  - Read room_spec.portals[portal_index]
+  - If locked, return early
+  - Transition to portal.connected_node via _load_room
+
+_current_room_index replaced by current_node_id.
+Room label reads the connected node's section + archetype.
+
+
+================================================================================
+V. BUILD ORDER
+================================================================================
+
+Phase A — Foundation
+
+  Step 1: RoomArchetype.gd (new)
+    - Enum
+    - PortalSlot class
+    - PortalData class
+    - get_available_portal_slots() static function
+    - GuardPost skeleton function (Phase B of Pass 2)
+    - BridgeSpan skeleton function
+    - Sanctuary skeleton function
+    - Old WorldGenerator still works — new system coexists during this phase
+
+  Step 2: DungeonGraph.gd (new)
+    - NodeData class (RoomSpec plus graph fields)
+    - Graph data structure
+    - Integration with DungeonPlan
+    - Invariant validation functions
+
+Phase B — Graph Generation
+
+  Step 3: DungeonGenerator.gd rewrite
+    - Produce DungeonGraph instead of Array
+    - Section-based node generation
+    - Critical path + branch overlay
+    - Portal slot matching (queries archetypes before wiring)
+    - Dead-end assignment with secret_content guarantee
+    - First test: small graph (6 nodes, 1 branch, 1 dead-end)
+
+Phase C — Room Rendering
+
+  Step 4: RegionTheme.gd (new)
+    - HexTheme enum
+    - Theme data objects
+    - Theme modifier functions
+    - First theme: Geocrash (angular fracture, cubic debris)
+
+  Step 5: RoomTerrainGenerator.gd (new)
+    - Full Pass 2 pipeline
+    - Archetype-driven skeleton functions
+    - Portal carving (reads slot_id from PortalData)
+    - Theme integration
+    - First test: generate 20 Guard Posts with same seed, verify skeleton is
+      structurally identical but noise varies between seeds
+
+Phase D — Integration
+
+  Step 6: WorldGenerator.gd cleanup
+    - Remove: generate_room(), generate_room_from_spec(), ROOM_W, ROOM_H
+    - Update build_room() for variable grids
+    - Keep: enemy spawning, add_abyss_kill_trigger()
+
+  Step 7: PixelRenderer.gd update
+    - Add PLATFORM, ABYSS, PRESSURE_PLATE, LOCKED_DOOR to TileType enum
+    - Add draw functions for PRESSURE_PLATE and LOCKED_DOOR
+
+  Step 8: DungeonPlan.gd update
+    - Replace flat rooms: Array with DungeonGraph
+
+  Step 9: Game.gd update
+    - Room lifecycle uses graph traversal
+    - Portal-based spawn positioning
+    - Exit wall+prompt at each portal
+    - Remove all ROOM_W/ROOM_H references
+
+Phase E — Polish
+
+  Step 10: Remaining archetypes
+    - COLLAPSED_HALL, STORAGE_VAULT, RITUAL_CHAMBER, WATCHTOWER, QUARRY
+    - Each gets skeleton function + portal slot definitions
+
+  Step 11: Remaining themes
+    - Voidrend, Echoscream, Memoreave, Nullpulse, Technomantic
+    - Each gets shape modifier pass
+
+  Step 12: Cleanup
+    - Remove legacy functions (_generate_room, _on_room_exit_reached)
+    - Remove dead code
+    - Full dungeon run test with branching
+
+
+================================================================================
+VI. INVARIANTS CHECKLIST
+================================================================================
+
+[ ] Every room has an archetype. No fallback to generic box.
+[ ] Every TRUE_DEAD_END has secret_content != NONE.
+[ ] Every TRUE_DEAD_END has exactly 1 portal (the return path to parent).
+[ ] Critical path rooms never have dead_end = TRUE_DEAD_END.
+[ ] Entry node has no portals from outside the graph.
+[ ] Exit node has exactly 1 portal (from climax).
+[ ] All critical-path rooms reachable without passing through any dead-end.
+[ ] Every node reachable from entry through at least one traversal path.
+[ ] Portal edges only connect compatible slots (left<->right, ground<->ground,
+    mid<->mid, high<->high).
+[ ] No two portals connect the same pair of rooms in the same direction.
+[ ] Room dimensions never exceed the archetype's max size.
+[ ] Every skeleton function produces structurally distinct rooms per
+    archetype (Guard Post does not look like Bridge Span).
+
+
+================================================================================
+VII. PORTAL COMPATIBILITY MATRIX
+================================================================================
+
+Pass 1 uses this matrix to determine which slot pairs are wire-able:
+
+  Source side    Dest side    Compatible?
+  left           right        YES — horizontal connection
+  right          left         YES — horizontal connection
+  top            bottom       YES — vertical connection
+  bottom         top          YES — vertical connection
+  left           left         NO — both face same direction
+  right          right        NO — both face same direction
+  top            top          NO — both face same direction
+  bottom         bottom       NO — both face same direction
+  left/top       right/top    NO — height mismatch (unless both "ground")
+  Any            Any          NO if side pair not listed above
+
+Height bands must also match:
+  ground <-> ground
+  mid    <-> mid
+  high   <-> high
+  ground <-> mid     NO — vertical offset would require stairs/ladder
+  mid    <-> high    NO — same reason
+
+(The final doc currently goes to the design docs folder so we can reference it.)
+
+
+===============================================================================
+VIII. THE CENTRAL RULE — PORTAL-ANCHORED GENERATION
+===============================================================================
+
+Every room is generated from its portal positions outward. Portal positions
+are the ONLY anchor points. No fixed ratios, no predetermined floor heights,
+no structural elements tied to room-dimension fractions.
+
+A room is traversable if and only if every portal floor is connected to every
+other portal floor by a constructed walkable path. Path construction must be
+guaranteed by the generation algorithm — NOT by carving a doorway into a
+pre-made template. Carving is only acceptable as a final cleanup step; the
+structural guarantee must come from constructive rules.
+
+8.1  FORBIDDEN PATTERNS
+
+The following are NEVER allowed in any room generation function:
+
+  [X] Fixed floor row:   ground_y := h - 4
+      (h-4 is a convention, not a rule. Floor height is wherever the portal
+      says it is. If both portals are at ground band, the path between them
+      is at portal floor height, not at h-4.)
+
+  [X] Fixed percentage segments:   left_end := int(w * 0.35)
+      (This always places a structural boundary at the same relative position
+      for a given archetype, producing the same layout shape. Use random
+      thresholds or portal-relative positioning instead.)
+
+  [X] Fixed pillar positions:   pillar_interval := 9
+      (Every Storage Vault of the same width has pillars at the same columns.
+      Randomize interval within bounds; ensure pillars never block the path.)
+
+  [X] Fixed feature sizes:   plat_w := 5
+      (A Ritual Chamber's central platform is always 5 tiles wide. Randomize
+      platform dimensions so two Ritual Chambers of the same size differ.)
+
+  [X] Fixed corner features:   corner := [[margin+1, ground_y-3], ...]
+      (Corner alcoves at fixed offsets from walls. Randomize presence,
+      position, and size. If a corner feature would intersect a portal
+      doorway, do not place it.)
+
+  [X] Any coordinate expressed as a constant or simple fraction of room
+      dimensions that would produce the same layout across multiple seeds.
+      (Constants are for tile types only. Every position must involve a
+      random roll, a portal-derived anchor, or a dynamic computation.)
+
+8.2  CONSTRUCTION ORDER (ALL ARCHETYPES)
+
+  Step 1 — Portal floors. For each portal in the room's portal list, place
+    FLOOR tiles at the bottom 2 rows of the doorway. These are the
+    non-negotiable anchor points.
+
+  Step 2 — Base path. Connect entry portal floor to exit portal floor:
+    - Same height:   fill FLOOR tiles horizontally between them
+    - Different heights: build stairs or ramps using random step heights
+      (1-3 tiles per step), ensuring each intermediate platform is wide
+      enough to stand on (>=3 tiles)
+    - The base path is always the widest, most direct route. Side paths
+      and decorations branch off from it but never interrupt it.
+
+  Step 3 — Archetype character. Apply archetype-specific rules that ADD
+    geometry without removing path tiles:
+    - May add platforms, walls, pillars, rubble at random positions
+    - May raise or lower sections of the base path (creating elevation
+      variety) but only if the modified section still connects the portals
+    - May add structural features (alcoves, overhangs, cover walls)
+      at positions that do not overlap portal doorways
+    - All added features use random dimensions within archetype bounds
+
+  Step 4 — Cleanup. Carve portal doorways fully (already handled by Step 1
+    but the carved area may have been partially filled by Step 3 features;
+    re-carve to guarantee clearance). Remove isolated wall tiles. Ensure
+    no 1-tile-wide gaps in the walkable surface.
+
+8.3  CONSEQUENCES
+
+  - EVERY room of the same archetype will have a different layout, even at
+    the same dimensions and seed prefix. Structural variety comes from
+    random positions, not noise-on-template.
+  - Portal doorways are NEVER blocked because nothing is placed at portal
+    positions — the algorithm starts there and builds away from them.
+  - The DestructibleTile band-aid (breakable wall blocking forward progress)
+    is eliminated. If a room needs a breakable wall, it is a decorative
+    side-path feature, not a structural necessity.
+  - Flood-fill validation (Phase D of RoomTerrainGenerator) becomes a
+    debugging aid, not a correctness requirement. The constructive rules
+    guarantee connectivity by design.

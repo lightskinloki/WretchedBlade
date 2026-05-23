@@ -1,0 +1,12 @@
+# Godot cache and build files
+.godot/
+*.translation
+*.import
+export_presets.cfg
+
+# Claude Code local settings
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db

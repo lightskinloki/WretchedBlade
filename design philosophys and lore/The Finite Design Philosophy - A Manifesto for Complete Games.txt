@@ -1,0 +1,87 @@
+The Finite Design Philosophy
+
+A Manifesto for Complete Games
+
+I. The Ending Imperative
+Stories must end to matter.
+
+Infinity dilutes consequence. A narrative that knows its conclusion can weight every chapter, stage, and dialogue choice with meaning. A fighting game's arcade path should resolve; a platformer's world should have a final gate; an RPG's arc should reach a terminal choice. When a story is built to stretch forever, no individual beat can carry too much significance, lest it break the treadmill. Finity is not a limitation—it is the source of gravity.
+
+Application: Define your final scene before you build your first. If you cannot write "THE END," you are not authoring a story. You are architecting a content pipeline.
+
+
+II. The Finished Product Covenant
+A game must be whole at the moment it is obtained.
+
+No seasonal roadmaps. No day-one patches that contain the actual ending. No economy that sells the emotional resolution separately. The player must own the complete experience from the first session: the full journey, the full competitive suite, the full creative toolkit, and the full cooperative mode. When a game is treated as a service, the player becomes a tenant. When it is treated as an object, the player becomes a curator.
+
+Application: If you cannot describe your entire experience in one sentence without referencing a shop, a season, or an upcoming update, you have built a marketplace, not a world.
+
+
+III. The Core Verb Ecosystem
+Every player action must chemically react with every other player action, creating unscripted chain reactions.
+
+Your character's toolkit should be a living system, not a list of isolated buttons. In a platformer, the jump must converse with the attack and the dodge. In a fighter, the light strike, the movement option, and the resource meter must modify one another. In an RPG, dialogue, exploration, and conflict resolution should share consequences across categories. True systemic chemistry is not just about solving a problem with two verbs—it is about unintended side effects. When a player uses Verb A to achieve Outcome X, they should accidentally trigger System B because the rules of the world are consistent and unyielding. If a verb operates in a vacuum with zero side effects, remove it.
+
+Application: Identify your three most frequent player verbs. Ensure every challenge can be approached by at least two of them interacting in an unscripted way. Now test for volatility: force two systems to collide and verify they generate emergent consequences that neither verb could achieve alone.
+
+
+IV. The Standalone Encounter
+Any thirty seconds of play must be worth repeating immediately.
+
+Do not hide weak design behind spectacle. A collapsing tower impresses once; a well-crafted enemy pattern, a perfectly spaced platforming gauntlet, or a single neutral exchange in a fighter impresses the hundredth time. Build your game one atomic unit at a time. If you cannot drop a player into a random room, screen, or match and have them laugh, swear, or think within half a minute, your foundation is unsound.
+
+Application: Test individual rooms, individual screens, and individual rounds in isolation. If they are not engaging without context, rebuild them before you worry about the narrative bridge between them.
+
+
+V. Architectural Design
+Stages, levels, and worlds are spaces that possess an inherent, internal logic.
+
+A dungeon should feel like it had a purpose beyond storing loot. A platforming gauntlet should feel like a spatial puzzle with rigorous geometry. A fighting stage should feel like a location with defined boundaries, not a flat plane with wallpaper. Design the functional logic and physical geometry of the space first, then populate it with conflict. The player should be able to look at the environment and immediately deduce the structural rules of the arena.
+
+Application: Draft your environment as a coherent, functional layout before adding enemies, traps, or specific hazards. Ask: "Does this space make mathematical or structural sense on its own?" If the layout is arbitrary without a target pinned to it, tighten the geometry.
+
+
+VI. Mystery Through Restraint
+Show the minimum. Let the player imagine the maximum.
+
+Lore is most powerful when it is implied. A monster is more terrifying when its ecology is half-glimpsed. A civilization is more compelling when you meet its ruins, not its historians. A character is more interesting when their past has gaps you project your own story into. Codex bloat and exhaustive wikis kill wonder by explaining it. Trust your audience to be smarter than your database.
+
+Application: For every piece of world-building you want to expose, write it, then delete half. The player will fill the absence with something more personal than your canon ever could.
+
+
+VII. Shared Presence
+The presence of another human being in the room is not a distraction. It is a validation of the world.
+
+A game should command the space it inhabits. Whether through intense local simultaneous play, pass-the-controller tension, or a narrative and visual gravity that transforms a spectator into a co-pilot, the experience should resonate beyond the screen. If a game is so insular that it cannot be observed, discussed, or shared by two people sitting on the same couch, it has designed for isolation. A masterpiece can be a solo performance, but it should still be a performance—something someone else wants to watch, debate, or remember with you after the screen turns off.
+
+Application: Evaluate the Couch Test. If someone sits down next to the player for ten minutes, do the visual feedback, mechanical stakes, or world choices give them a reason to stay, comment, or react? If the game requires total isolation to be understood, look for ways to make its systemic feedback more expressive.
+
+
+VIII. Earned, Not Bought
+Progression must be a record of mastery, not a record of transactions.
+
+Unlocks should require demonstrating creativity, persistence, or skill. A palette swap earned by conquering a brutal bonus stage is a memory. A palette swap bought from a menu is inventory. When rewards are purchased, they are receipts. When they are earned, they are stories the player can tell.
+
+Application: Tie every unlockable to a verb the player already uses, but demand an unexpected or refined execution of that verb. If it can be acquired with currency instead of competence, it is not an achievement.
+
+
+IX. Constraint as Catalyst
+Limits are creative allies, not enemies to engineer around.
+
+Fixed hardware, limited inputs, small teams, and immutable deadlines force you to perfect the core loop rather than distract with scope. You cannot patch a broken level if the medium does not allow updates. You cannot hide weak design behind photorealism if the machine cannot render it. Boundaries cut the fat that unlimited resources allow to accumulate.
+
+Application: Artificially constrain your scope. Limit your moveset. Limit your stage count. Limit your dialogue budget. Force yourself to make a small thing perfect rather than a large thing mediocre.
+
+
+X. Music as Emotional Architecture
+The score is not accompaniment. It is a character.
+
+Music should interpret the world, not wallpaper it. A driving percussion track tells the player the conflict is immediate. A sparse, melancholy theme tells them the loss is permanent. A triumphant motif tells them the climb mattered. If the player can hum your central theme after putting the controller down, you have succeeded. If they cannot remember whether there was music at all, you have failed.
+
+Application: Give your composer the emotional script before the visuals are finalized. Let the music dictate the rhythm of a stage or the tension of a scene, not decorate it after the fact.
+
+
+The Single-Sentence Summary
+
+> Design an experience that ends, that ships complete, that respects the player's intelligence, that makes the smallest interactive unit feel vast, and that is built to be remembered—not maintained.

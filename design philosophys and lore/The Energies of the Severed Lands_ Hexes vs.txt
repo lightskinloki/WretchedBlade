@@ -1,0 +1,55 @@
+﻿________________
+
+
+The Energies of the Severed Lands: Hexes vs. Resonance Arts
+The fundamental energy pervading the Severed Lands is the Nullpulse. It is the raw, fundamental fabric of existence itself, but in this blighted world, it has been violated, ruptured, and corrupted. How beings interact with and channel this pervasive energy defines their power, their capabilities, and their ultimate fate.
+I. Hexes: The Legacy of Human Hubris and Forged Discord
+Hexes are not magic in a traditional sense; they are primal cataclysms, catastrophic distortions of reality. They are the direct, devastating consequence of humanity's ambition and greed violently forcing the Nullpulse to bend to an unnatural will. Hexes are discordant frequencies, brutally imposed upon the Nullpulse's natural composition, never meant to exist in such virulent forms.
+* Origin and Impact: Hexes were first discovered and refined by ancient elites, who used them to dominate. This insatiable quest for power sparked conflicts that culminated in multiple "hexocausts" – events of unfathomable destruction. Each hexocaust didn't just alter the world; it fundamentally ruptured the Nullpulse's integrity, accelerating its unraveling. This left behind the Severed Lands – a wasteland of ash, rust, bone, and shattered concrete – scarred by the very nature of the Hexes unleashed (e.g., fractured cubic ruins from Geocrash, echo-warped towers from Echoscream, hollowed voids from Voidrend, memory-warped ruins from Memoreave, unraveling craters from Nullpulse). The widespread use of Hexes also severely drained the land's overall vitality, making Hexes themselves increasingly rarer and more volatile with each collapse.
+
+* Nature and Themes: Hexes are non-elemental and abstract distortions of reality, focusing on concepts like geometry, sound, existence, memory, and essence, rather than cliché elements like fire or lightning. This makes them feel alien, terrifying, and truly catastrophic. They embody the game's core themes of greed, corruption, and cyclical collapse.
+
+* Player's Innate Hex (The Wretched Blade): The player's starting Executioner's Sword, known as The Wretched Blade, is not merely a weapon; it is the player Nullman's own innate Hex, a primordial force born from the very first Hexocaust. This unique origin grants it two critical abilities:
+
+   * Transmutation: It allows the Wretched Blade to transmute into other weapon forms by absorbing the combat philosophy and Hexic resonance of defeated Dominators.
+   * Perma-kill: It grants the player the unique ability to permanently "permakill" other Nullmen (including Dominators), which other Nullmen cannot do to each other, explaining their perpetual war.
+   * Progression and Power Levels (for enemies and player):
+
+      * Weak Hexes: Used by Lower Castes (Scrappers, Stalkers, Enforcers). They deal minor damage (5-10% enemy health) or provide brief debuffs, often feeling instinctive. Visually, they are faint and subdued, hinting at their grander potential.
+      * Moderate Hexes: Wielded by Middle Tiers (Enforcers, Raiders, Lieutenants). They are tactical, dealing more damage (15% health) or providing more significant effects like stagger or audio distortion. They appear vibrant and rippling.
+      * Devastating Hexes: Hoarded and used sparingly by Dominators (1-2 times per fight). These are blinding, neon-charged spectacles with explosive effects and overwhelming scale, akin to Elden Ring's boss incantations. They deal significant damage (25-35% player health) and often have major environmental impacts. Dominators wield these potent forms because they have spent eons steeped in this corrupting energy, profoundly aligning themselves with these unnatural frequencies.
+      * Lesser Hexes (Player Acquisition): After defeating a Dominator, the player can choose to take on their Lesser Hex as a supplementary tool. These have high Essence costs (15-25%) and long cooldowns (40-50 seconds), ensuring physical sword-fighting remains dominant. Visually, they are vivid but restrained compared to Devastating Hexes. This choice is an act of directly embracing and integrating a fragment of that Dominator's virulent, reality-distorting corruption.
+      * Choice and Consequences (Hex Affinity): Each time the player chooses a Lesser Hex, their Hex Affinity Score increases. This represents the Wretched Blade's growing attunement to the unnatural frequencies of corruption and greed that define Hexes. The higher the Hex Affinity Score, the more the player is pushed towards more corrupted and apocalyptic endings, including the mutually exclusive ultimate "Grand Erasure" and "Last Echo" endings, which profoundly alter the game's visual presentation and unlocks.
+
+      * Mechanics and Role:
+
+         * Activation: Player Hexes are activated via charged inputs or dedicated button combinations. Each activation is confirmed by a distinctive neon visual burst and a sharp audio cue, communicating the Hex's detonation point clearly within 2D space.
+         * Essence Cost: Hexes consume "Essence," a resource for upgrades and ability use, forcing strategic trade-offs.
+         * Thematic Unity: Each Dominator's region has a thematic Hex family, with enemies in that region using lesser versions, reinforcing the corrupting influence throughout their domain.
+II. Resonance Arts: Reclaiming the Nullpulse's Intrinsic Harmony
+Resonance Arts are a completely distinct system from Hexes. They are not a result of human domination or corrupted will. Instead, they are achieved by aligning the Wretched Blade's own will with the natural, underlying frequencies that are still present within the Nullpulse's chaotic composition.
+         * The Nullpulse's Core: While the Nullpulse is chaotic and destructive due to humanity's interventions, it still possesses a fundamental, intrinsic structure – a "song" of existence, albeit a broken and distorted one. These are the original, natural frequencies that underlie all being.
+
+         * The Tuning Forks: Relics of a Lost Harmony: Tuning Forks are ancient artifacts. They were crafted by unknown entities in previous collapses, or perhaps even from a primordial age, who understood the true, natural frequencies of the Nullpulse. They represent a lost knowledge of harmony with the Nullpulse. The quality and potency of a Tuning Fork depend on its age and the era it was made in. Older forks, made in times of less cosmic discord, can induce a more powerful and stable resonance. These forks inherently carry a history, allowing for lore details to be embedded within them.
+
+         * Mini-World Bosses: Guardians of Ancient Attunement: Mini-World Bosses are formidable adversaries precisely because they have found and mastered the use of these ancient Tuning Forks. Each Mini-Boss, through their unique story, has acquired a specific Tuning Fork and uses its Resonance Art to achieve their power, define their combat style, or dominate their localized territory. Their defeat grants the Wretched Blade access to these rare artifacts.
+
+         * Acquisition by the Wretched Blade: Upon defeating a Mini-World Boss, the Wretched Blade simply claims the unique Tuning Fork from its defeated foe. This is a direct transfer of a powerful, pre-existing artifact.
+
+         * Activation and Attunement (At Sanctuaries Only):
+
+            * The player can only have one Resonance Art active at a time.
+            * To activate or change a Resonance Art, the player must be at a Sanctuary (a hub/bonfire location).
+            * At a Tuning Fork checkpoint (Sanctuary), the player rests and channels the chosen Fork's frequency into the Wretched Blade — a deliberate act of stillness and attunement amid the violence of the Severed Lands.
+            * A specific visual indicator and auditory chime confirm the change, signifying the Wretched Blade "tuning" itself to that specific frequency. The previous Resonance Art (if any) is then de-activated.
+            * The Wretched Blade's unique nature (its primordial Nullman origin and its innate capacity for transmutation and deep attunement) allows it to understand and harmonize with these natural frequencies through this moment of focused resonance. This temporary attunement changes the Blade's inherent properties, manifesting a refined, powerful ability.
+            * Nature and Non-Corruption: Resonance Arts are a form of magic, but critically, they are non-corrupting. They do not affect the player's Hex Affinity Score. By aligning with the Nullpulse's natural, underlying frequencies, the player is not embracing a discordant, destructive path. Instead, they are gaining refined capabilities through a form of harmonization and profound martial attunement, distinct from the greed and forced power of Hexes.
+
+            * Fuel: Resonance Arts consume Essence (raw Nullpulse energy) drawn from defeated enemies. This creates a strategic choice for the player: spend Essence on a corrupting Hex for raw power, or on a non-corrupting Resonance Art for nuanced augmentation and tactical advantage?
+
+            * Distinction from Hexes (Summary):
+
+               * Origin: Hexes = Man's violent imposition of discord / Resonance Arts = Alignment with Nullpulse's inherent, natural frequencies via ancient, pre-existing artifacts.
+               * Corruption: Hexes = Inherently corrupting (increase Hex Affinity) / Resonance Arts = Non-corrupting (do not affect Hex Affinity).
+               * Manifestation: Hexes = External, chaotic, destructive cataclysms / Resonance Arts = Internal, refined, physically augmenting the Blade's properties.
+               * Acquisition: Hexes = Chosen from defeated Dominators / Resonance Arts = Claimed from defeated Mini-World Bosses (who wield them via Tuning Forks).

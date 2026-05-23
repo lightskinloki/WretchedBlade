@@ -1,0 +1,35 @@
+﻿________________
+
+
+The Wretched Blade: Player Identity, Damage, and Reconstitution
+In "Wretched Blade," the player's identity is intrinsically linked to the very essence of the Severed Lands and the destructive legacy that shaped it. You are not merely a wielder of power, but power itself, bound to a unique cycle of destruction and rebirth.
+________________
+
+
+The True Self: The Wretched Blade (The Sword Itself)
+The player's consciousness, their will, and their fundamental being reside within the Executioner's Sword itself, the artifact known as The Wretched Blade. This is your true form.
+The Wretched Blade isn't just a special weapon; it's a primordial force, an innate Hex born directly from the very first Hexocaust. This makes you a singular anomaly among Nullmen. Unlike others who merely arose from the Nullpulse's chaos, you are a concentrated essence of that initial, catastrophic rupture. This unique origin grants you profound abilities:
+* Sentient Core: You are a self-aware entity, the thinking, perceiving consciousness controlling your actions.
+* Unique Nullman Origin: Your connection to the first Hexocaust sets you apart from other Nullmen, explaining your distinct capabilities within the ravaged world.
+* Transmutation: As a living Hex, The Wretched Blade can transmute into different Weapon Forms by absorbing the combat philosophy and Hexic resonance of defeated Dominators.
+* Perma-kill: Only you, as The Wretched Blade, possess the ability to permanently extinguish other Nullmen, including Dominators, a power that fuels the endless conflicts between them.
+________________
+
+
+The Projected Body: An Instrument for Interaction
+To navigate the perilous Severed Lands, interact with its remnants, and engage in the brutal combat it demands, The Wretched Blade generates a humanoid projection. This body is an ephemeral avatar, a temporary construct of localized Nullpulse energy shaped by your will.
+* Purpose: This projected body serves as your interface with the world. It allows you to gather Essence, choose Lesser Hexes, claim Tuning Forks, and engage in the physical combat essential for your survival and progression.
+* Inherent Limitations: Any unique characteristics or limitations of your player character's physical form can be attributed to the properties of this energetic projection, rather than a conventional biological body. Lineage — the sub-race of human template the blade projects — shapes these passive properties at the start of a run.
+* Interaction: Despite being a projection, your body is solid enough to be perceived by, and interact with, other Nullmen, factions, and the environment as a tangible entity.
+________________
+
+
+Damage, Death, and Reconstitution: The Blade's Cycle
+Your true nature as The Wretched Blade dictates a unique cycle of damage, defeat, and rebirth within the game.
+* Damage Visuals on the Weapon Form: Your projected body will never show signs of damage, degradation, or weakness. It remains pristine, emphasizing its nature as a temporary construct. Instead, all damage taken and your remaining durability are visually represented by the Weapon Form you currently wield. As your health drains, your active Weapon Form will become progressively degraded, chipped, dirty, scarred, or otherwise visually distressed. The health bar is literally the blade itself.
+* Death and Immediate Transition: When your health is fully depleted, your current Weapon Form will violently shatter or dissipate with a dramatic visual and sound effect, signifying the destruction of your true self's current manifestation. Immediately following this, the screen goes black, and a "You Died" or similar defeat screen appears. There is no visual of your projected body dissolving.
+* Player-Initiated Reconstitution: To initiate respawn, you must actively reach back through severed reality — on mobile, touch and hold the screen; on PC, hold the reconstitute key. This is not an automatic respawn. The deliberate, sustained input roots your rebirth in player agency: you are willing yourself back into existence.
+* Reconstitution Animation:
+   1. First, The Wretched Blade itself will reconstitute, reforming from Nullpulse energy with a surge of light.
+   2. As the player's will makes contact with the newly formed blade, the projected body begins to reconstitute outward from that focal point. The body solidifies around the blade as its central anchor, visually demonstrating that the blade is the foundation of your physical form.
+* Return to Game: Once your body is fully reformed, you're returned to the last checkpoint or respawn point, with your Weapon Form fully restored.
