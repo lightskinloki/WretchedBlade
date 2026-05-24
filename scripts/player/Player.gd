@@ -92,6 +92,19 @@ func _physics_process(delta: float) -> void:
 	if not GameManager.is_playing():
 		return
 
+	# ── Frame-start velocity audit ────────────────────────────────────────────
+	# Catches large carry-forward velocity from previous frame (launch bug).
+	if velocity.length() > 800.0:
+		print("[PHYSICS] HIGH VELOCITY at frame start: vel=", velocity.round(),
+			" speed=", snapped(velocity.length(), 0.1),
+			" pos=", global_position.round(),
+			" dodging=", is_dodging, " on_floor=", is_on_floor())
+
+	# ── Out-of-bounds position check ──────────────────────────────────────────
+	if global_position.y > 700.0:
+		print("[PHYSICS] PLAYER BELOW FLOOR: pos=", global_position.round(),
+			" vel=", velocity.round())
+
 	_read_keyboard_input()
 	_handle_dodge(delta)
 

@@ -154,6 +154,10 @@ func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
 	EssenceManager.gain_essence(ESSENCE_DROP)
 	print("[NULLMAN] essence gained (%d)" % ESSENCE_DROP)
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		print("[NULLMAN] PREDELETE — was_alive=%s hp=%d pos=%s" % [_is_alive, current_health, global_position.round()])
+
 func is_counterable() -> bool:
 	return _is_alive and _is_winding_up
 

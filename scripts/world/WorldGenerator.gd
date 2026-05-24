@@ -243,7 +243,7 @@ func _add_abyss_kill_trigger(parent: Node2D, room_w: int, room_h: int) -> void:
 	area.name = "AbyssKillTrigger"
 	area.monitoring = false  # Armed after a short delay so room-entry teleport can't false-trigger
 	area.monitorable = false
-	area.collision_mask = 4  # Detect player on layer 3
+	area.collision_mask = 4 | 2  # Layer 3 (player) + layer 2 (enemies)
 
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
@@ -258,10 +258,18 @@ func _add_abyss_kill_trigger(parent: Node2D, room_w: int, room_h: int) -> void:
 	)
 
 	area.body_entered.connect(func(body: Node2D):
+		print("[KILLZONE] body_entered: %s groups=%s pos=%s vel=%s" % [
+			body.name, body.get_groups(),
+			body.global_position.round(),
+			body.velocity.round() if body is CharacterBody2D else Vector2.ZERO
+		])
 		if body.is_in_group("player"):
-			print("[DAMAGE] Void kill zone triggered on player. Frame: ", Engine.get_process_frames())
+			print("[KILLZONE] → killing player")
 			if body.has_method("take_damage"):
 				body.take_damage(9999)
+		elif body.is_in_group("enemy"):
+			print("[KILLZONE] → enemy fell into abyss, queuing free (no essence)")
+			body.queue_free()
 	)
 
 	parent.add_child(area)
