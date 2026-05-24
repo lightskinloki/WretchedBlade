@@ -88,6 +88,9 @@ func _ready() -> void:
 
 	collision_layer = 4  # Layer 3 (player)
 	collision_mask  = LAYER_GEOMETRY | LAYER_ENEMY
+	# Increase from 0.08 default — prevents degenerate overlap when standing on
+	# enemy CharacterBody2Ds. At 1px on 16px tiles, visually imperceptible.
+	safe_margin = 1.0
 
 	GameManager.player_died.connect(_on_player_died)
 	GameManager.player_reconstituted.connect(_on_reconstituted)
@@ -169,8 +172,8 @@ func _physics_process(delta: float) -> void:
 	# physics engine can't resolve the collision normal. Reset to checkpoint.
 	if is_nan(global_position.x) or is_nan(global_position.y):
 		print("[PHYSICS] NaN DETECTED after move_and_slide — pre_vel=", pre_slide_vel,
-			" resetting to checkpoint")
-		global_position = GameManager.get_respawn_position()
+			" restoring prev_pos=", _prev_position.round())
+		global_position = _prev_position
 		velocity = Vector2.ZERO
 		return
 
