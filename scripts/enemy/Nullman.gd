@@ -118,9 +118,11 @@ func _physics_process(delta: float) -> void:
 
 func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
 	if not _is_alive:
+		print("[NULLMAN] take_damage(%d) ignored — already dead. pos=%s" % [amount, global_position.round()])
 		return
 	current_health -= amount
 	_is_winding_up = false
+	print("[NULLMAN] take_damage(%d) hp=%d pos=%s" % [amount, current_health, global_position.round()])
 
 	if current_health > 0:
 		_stagger_timer = 0.15
@@ -132,6 +134,7 @@ func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
 		return
 
 	# Death
+	print("[NULLMAN] DEATH — sprite_valid=%s pos=%s" % [sprite != null, global_position.round()])
 	_is_alive = false
 	set_physics_process(false)
 
@@ -144,10 +147,12 @@ func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
 		t.tween_property(sprite, "modulate:a", 0.0, 0.3)
 		t.tween_callback(queue_free)
 	else:
+		print("[NULLMAN] sprite is null at death — freeing immediately")
 		queue_free()
 
 	emit_signal("enemy_died", global_position, ESSENCE_DROP)
 	EssenceManager.gain_essence(ESSENCE_DROP)
+	print("[NULLMAN] essence gained (%d)" % ESSENCE_DROP)
 
 func is_counterable() -> bool:
 	return _is_alive and _is_winding_up

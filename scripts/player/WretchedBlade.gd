@@ -373,6 +373,12 @@ func _play_transmutation_flash() -> void:
 
 # ── Damage & healing ──────────────────────────────────────────────────────────
 func take_damage(amount: int) -> void:
+	var stack := get_stack()
+	var caller := "unknown"
+	if stack.size() >= 2:
+		caller = stack[1].source.get_file() + ":" + str(stack[1].line)
+	print("[BLADE] take_damage(%d) hp=%d->%d from=%s" % [amount, current_health, max(0, current_health - amount), caller])
+
 	current_health = max(0, current_health - amount)
 	health_pct     = float(current_health) / float(MAX_HEALTH)
 	emit_signal("health_changed", health_pct)
@@ -383,6 +389,7 @@ func take_damage(amount: int) -> void:
 		_shake(cam, 6.0, 0.18)
 
 	if current_health <= 0:
+		print("[BLADE] SHATTER — hp reached 0")
 		_shatter()
 
 func heal(amount: int) -> void:

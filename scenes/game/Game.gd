@@ -87,8 +87,11 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 		return
 
 	var node: DungeonGraph.RoomNode = dungeon_graph.get_node(node_id)
-	print("=== _load_room node=%d archetype=%s w=%d h=%d prev=%d ===" % [node_id, RoomArchetype.get_archetype_name(node.archetype), node.room_w, node.room_h, prev_node_id])
+	print("=== _load_room node=%d archetype=%s w=%d h=%d prev=%d | player_pos=%s ===" % [node_id, RoomArchetype.get_archetype_name(node.archetype), node.room_w, node.room_h, prev_node_id, player.global_position.round()])
+	print("  call stack: ", get_stack())
 
+	_near_portal_node = -1
+	_hide_portal_prompt()
 	for child in world.get_children():
 		child.queue_free()
 
@@ -260,7 +263,7 @@ func _hide_portal_prompt() -> void:
 	_exit_interact_prompt.visible = false
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact") and _near_portal_node >= 0:
+	if event.is_action_pressed("interact") and _near_portal_node >= 0 and player.is_on_floor():
 		get_viewport().set_input_as_handled()
 		_attempt_portal_transition(_near_portal_node)
 

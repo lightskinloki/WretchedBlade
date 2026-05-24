@@ -108,7 +108,21 @@ func _physics_process(delta: float) -> void:
 		else:
 			_lock_nearest()
 
+	var pre_slide_vel := velocity
 	move_and_slide()
+
+	# ── Velocity spike detector ───────────────────────────────────────────────
+	# Prints when move_and_slide imparts a large unexpected velocity change,
+	# which is the signature of a physics stacking launch off enemy bodies.
+	var vel_delta := (velocity - pre_slide_vel).length()
+	if vel_delta > 400.0:
+		print("[PHYSICS] Velocity spike after move_and_slide: pre=", pre_slide_vel.round(),
+			" post=", velocity.round(), " delta=", snapped(vel_delta, 0.1),
+			" pos=", global_position.round(),
+			" slide_count=", get_slide_collision_count())
+		for i in get_slide_collision_count():
+			var col := get_slide_collision(i)
+			print("  collider[%d]: %s layer=%d" % [i, col.get_collider(), col.get_collider().collision_layer if col.get_collider() is PhysicsBody2D else -1])
 
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME
@@ -241,7 +255,7 @@ func _handle_dodge(delta: float) -> void:
 		if blade.has_method("try_dodge_cancel"):
 			blade.try_dodge_cancel()
 
-		# Disable enemy collision — pass through enemies
+		# Disable enemy collision during dodge — pass through enemies
 		collision_mask = LAYER_GEOMETRY
 
 	if is_dodging:
