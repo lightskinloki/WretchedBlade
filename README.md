@@ -130,12 +130,19 @@ Open the project in Godot 4 (`project.godot` at `C:\WretchedBlade`), ensure `Gam
 
 ### Implemented
 - Combat system: 3-hit combo with orbital blade arcs, input buffering, auto-lunge
-- Enemies: Nullman (basic patrol, contact damage), RivalBlade (dual-wield, 3-hit combo AI)
+- Enemies: Nullman (proximity detection, core-glow telegraph, pulse radial damage, counter/stun), RivalBlade (dual-wield, 3-hit combo AI, always faces player)
+- Lock-on system: `LockOn` autoload singleton, Tab to toggle nearest enemy, facing override when locked
+- Lock-on reticle: diamond targeting ring with pulse animation, follows locked target
 - World generation: Procedural rooms (floor, platforms, nullstone, abyss pits), linear room-to-room transitions
 - Systems: Essence currency, checkpoints, lost essence orbs, hitstop (real-time clock), counter system, death/respawn
 - Blade visual states: damage stages, shatter threshold
 - Combo counter HUD with milestone colors
 - Per-attack windup fractions (Slam 0.35, Uppercut 0.0)
+- Nullman shard visuals: procedural noise-driven jagged texture with per-seed personality, missing-chunk mechanic, fracture-surface bottom
+- Nullman pulse glow: soft white circle via PixelRenderer ImageTexture pipeline, tweened scale+alpha
+- RivalBlade per-blade hitboxes: hitboxes follow blade sprites as children, per-combo-hit enable/disable
+- Velocity spike detector: prints physics stacking collisions from move_and_slide for debugging
+- Damage-source logging: player take_damage prints caller file/line/function via get_stack()
 
 ### In Development
 - Overworld map hub screen
@@ -144,12 +151,14 @@ Open the project in Godot 4 (`project.godot` at `C:\WretchedBlade`), ensure `Gam
 - Puzzle system (pressure plates, breakable walls, platforming, corpse puzzles)
 - Seven regions with distinct Hex themes and generation parameters
 - Dominator boss AI (multi-phase, Hex-themed attack patterns)
+- RivalBlade AI rewrite: full player verb set (dodge, counter, attack choice, pacing) with contextual decision engine
 - Weapon Form system (absorbed from defeated Dominators)
 - Tuning Fork / Resonance Art system
 - Essence sinks: Lesser Hex purchases, Resonance Art fuel
 - Death/essence loop with safe recovery rule
 - Echo Mode for replaying boss dungeons
 - Checkpoint placement (1 per 5 rooms, generator-placed)
+- Lock-on camera: center between player and locked target
 - Save/load persistence
 - Ending system (Hex Affinity Score → multiple endings → NG+ modes)
 

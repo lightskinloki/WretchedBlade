@@ -103,7 +103,8 @@ C:\WretchedBlade\
 ├── autoload\
 │   ├── GameManager.gd         ← Game state (death, checkpoints, respawn)
 │   ├── EssenceManager.gd      ← Souls currency system
-│   └── PixelRenderer.gd       ← ALL visuals generated here (no image files!)
+│   ├── PixelRenderer.gd       ← ALL visuals generated here (no image files!)
+│   └── LockOn.gd              ← Lock-on singleton (target tracking, facing direction)
 ├── scenes\
 │   └── game\
 │       ├── Game.tscn          ← YOU create this in the editor
@@ -150,12 +151,16 @@ Sections are NOT rooms. Each beat is a design intention; the generator decides h
 ### Phase 1 — Core Combat (Done)
 - [x] Player movement (walk, jump, dodge)
 - [x] 3-hit combo attack system (orbital blade arcs, input buffering, lunge)
-- [x] Nullman enemy (basic patrol, contact damage)
-- [x] RivalBlade enemy (dual-wield, 3-hit combo AI)
+- [x] Nullman enemy (proximity, core-glow telegraph, pulse radial damage, counter)
+- [x] RivalBlade enemy (dual-wield, 3-hit combo AI, always faces target)
 - [x] Essence system (currency, drops, lost essence orbs)
 - [x] Checkpoints and death/respawn
 - [x] Hitstop, counter, blade damage states
 - [x] Combo counter HUD, room transitions
+- [x] Lock-on system (autoload singleton, Tab toggle, facing override, reticle)
+- [x] RivalBlade per-blade hitboxes (follow blade sprites, per-combo enable/disable)
+- [x] Nullman shard textures (procedural noise-driven, per-seed personality)
+- [x] Nullman pulse glow (soft circle via ImageTexture, tweened)
 
 ### Phase 2 — Overworld + Region Map
 - [ ] Overworld map hub screen (procedural node layout for 7 regions)
