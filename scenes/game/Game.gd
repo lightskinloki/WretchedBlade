@@ -110,6 +110,7 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 	GameManager.set_checkpoint(spawn_pos)
 	player.global_position = spawn_pos
 	player.velocity = Vector2.ZERO
+	player.set_room_bounds(node.room_w, node.room_h)
 
 	world_gen.add_abyss_kill_trigger_for_room(world, node.room_w, node.room_h)
 

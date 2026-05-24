@@ -78,6 +78,7 @@ func _physics_process(delta: float) -> void:
 			if sprite:
 				sprite.modulate = Color.WHITE
 				sprite.scale = _base_scale
+			print("[NULLMAN] PULSE FIRE — pos=%s radius=%d" % [global_position.round(), PULSE_RADIUS])
 			_emit_pulse_visual()
 			# Pulse damage
 			for p in get_tree().get_nodes_in_group("player"):
@@ -90,6 +91,8 @@ func _physics_process(delta: float) -> void:
 	# ── Proximity detection ───────────────────────────────────────────────────
 	var player := get_tree().get_first_node_in_group("player")
 	if player and global_position.distance_to(player.global_position) <= WINDUP_RANGE:
+		var dist := global_position.distance_to(player.global_position)
+		print("[NULLMAN] WINDUP START — pos=%s player_pos=%s dist=%s" % [global_position.round(), player.global_position.round(), snapped(dist, 0.1)])
 		_is_winding_up = true
 		_windup_timer = WINDUP_DURATION
 		return

@@ -60,6 +60,10 @@ var _walk_time     := 0.0
 var _walk_pose_idx := 0
 var _current_pose: PixelRenderer.BodyPose = PixelRenderer.BodyPose.IDLE
 var _is_countering := false
+var _prev_position := Vector2.ZERO  # For per-frame teleport detection
+var _diag_frames   := 0             # When > 0, dump state every frame unconditionally
+var _room_w_px     := 704.0         # Set by Game.gd on room load (default 44*16)
+var _room_h_px     := 352.0         # Set by Game.gd on room load (default 22*16)
 
 # Previous-frame key state for edge detection
 var _last_attack_key  := false
@@ -69,6 +73,12 @@ var _last_lock_key    := false
 
 # Pre-generated pose textures
 var _poses: Dictionary = {}  # Maps BodyPose enum to ImageTexture
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		print("[PLAYER] PREDELETE — pos=%s vel=%s" % [global_position.round(), velocity.round()])
+	elif what == NOTIFICATION_EXIT_TREE:
+		print("[PLAYER] EXIT_TREE — pos=%s" % [global_position.round()])
 
 func _ready() -> void:
 	_poses = PixelRenderer.generate_body_textures()
@@ -88,22 +98,52 @@ func _ready() -> void:
 	_lock_on.target_locked.connect(_on_target_locked)
 	_lock_on.target_unlocked.connect(_on_target_unlocked)
 
+func set_room_bounds(w_tiles: int, h_tiles: int) -> void:
+	_room_w_px = float(w_tiles * 16)
+	_room_h_px = float(h_tiles * 16)
+	print("[PLAYER] room bounds set: %dx%d tiles → %.0fx%.0f px" % [w_tiles, h_tiles, _room_w_px, _room_h_px])
+
 func _physics_process(delta: float) -> void:
+	# Log BEFORE the GameManager gate so we know if processing stops
 	if not GameManager.is_playing():
+		if _diag_frames > 0:
+			print("[DIAG] physics BLOCKED by GameManager — pos=", global_position.round(),
+				" vel=", velocity.round())
+			_diag_frames -= 1
 		return
 
-	# ── Frame-start velocity audit ────────────────────────────────────────────
-	# Catches large carry-forward velocity from previous frame (launch bug).
-	if velocity.length() > 800.0:
-		print("[PHYSICS] HIGH VELOCITY at frame start: vel=", velocity.round(),
-			" speed=", snapped(velocity.length(), 0.1),
-			" pos=", global_position.round(),
-			" dodging=", is_dodging, " on_floor=", is_on_floor())
+	# ── Unconditional combat dump ─────────────────────────────────────────────
+	# After any combat event, dump every frame for 30 frames to catch the launch
+	if _diag_frames > 0:
+		_diag_frames -= 1
+		print("[DIAG %d] pos=%s vel=%s spd=%.0f floor=%s dodge=%s inv=%s vis=%s body_vis=%s mod=%s intree=%s" % [
+			_diag_frames, global_position.round(), velocity.round(),
+			velocity.length(), is_on_floor(), is_dodging, is_invincible,
+			visible, body_sprite.visible if body_sprite else "NULL",
+			body_sprite.modulate if body_sprite else "NULL",
+			is_inside_tree()])
 
-	# ── Out-of-bounds position check ──────────────────────────────────────────
-	if global_position.y > 700.0:
-		print("[PHYSICS] PLAYER BELOW FLOOR: pos=", global_position.round(),
+	# ── Threshold-based checks ────────────────────────────────────────────────
+	var _spd := velocity.length()
+
+	if _spd > 520.0 and not is_dodging:
+		print("[PHYSICS] EXCESS SPEED: vel=", velocity.round(),
+			" speed=", snapped(_spd, 0.1), " pos=", global_position.round())
+
+	# Position teleport: moved more than 64px in one frame without dodging
+	var _pos_delta := global_position.distance_to(_prev_position)
+	if _pos_delta > 64.0 and _prev_position != Vector2.ZERO and not is_dodging:
+		print("[PHYSICS] POSITION JUMP: delta=", snapped(_pos_delta, 0.1),
+			" from=", _prev_position.round(), " to=", global_position.round(),
 			" vel=", velocity.round())
+
+	# Out of room bounds (dynamic — set by Game.gd per room)
+	if global_position.x < -20.0 or global_position.x > _room_w_px + 20.0:
+		print("[PHYSICS] OUT OF X BOUNDS: pos=", global_position.round(),
+			" vel=", velocity.round(), " room_w=", _room_w_px)
+	if global_position.y > _room_h_px - 40.0:
+		print("[PHYSICS] BELOW FLOOR: pos=", global_position.round(),
+			" vel=", velocity.round(), " room_h=", _room_h_px)
 
 	_read_keyboard_input()
 	_handle_dodge(delta)
@@ -124,6 +164,16 @@ func _physics_process(delta: float) -> void:
 	var pre_slide_vel := velocity
 	move_and_slide()
 
+	# ── NaN guard ─────────────────────────────────────────────────────────────
+	# move_and_slide() can return NaN when two CharacterBody2Ds overlap and the
+	# physics engine can't resolve the collision normal. Reset to checkpoint.
+	if is_nan(global_position.x) or is_nan(global_position.y):
+		print("[PHYSICS] NaN DETECTED after move_and_slide — pre_vel=", pre_slide_vel,
+			" resetting to checkpoint")
+		global_position = GameManager.get_respawn_position()
+		velocity = Vector2.ZERO
+		return
+
 	# ── Velocity spike detector ───────────────────────────────────────────────
 	# Prints when move_and_slide imparts a large unexpected velocity change,
 	# which is the signature of a physics stacking launch off enemy bodies.
@@ -136,6 +186,8 @@ func _physics_process(delta: float) -> void:
 		for i in get_slide_collision_count():
 			var col := get_slide_collision(i)
 			print("  collider[%d]: %s layer=%d" % [i, col.get_collider(), col.get_collider().collision_layer if col.get_collider() is PhysicsBody2D else -1])
+
+	_prev_position = global_position
 
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME
@@ -226,7 +278,9 @@ func _handle_movement() -> void:
 
 # Brief speed burst toward enemy — called by blade.perform_attack()
 func lunge(dir: float) -> void:
+	print("[LUNGE] dir=", dir, " vel_before=", velocity.round(), " pos=", global_position.round())
 	velocity.x = dir * MOVE_SPEED * 2.0
+	_diag_frames = 30
 
 # Reads keyboard + touch direction at moment of dodge press.
 # No direction → dash forward. Any direction → normalized vector.
@@ -257,8 +311,10 @@ func _handle_dodge(delta: float) -> void:
 
 	if input_dodge and not is_dodging and dodge_cooldown <= 0.0:
 		dash_dir = _get_dash_direction()
+		print("[DODGE] start: dir=", dash_dir, " vel_before=", velocity.round(), " pos=", global_position.round())
 		velocity = dash_dir * DODGE_SPEED
 		is_dodging = true
+		_diag_frames = 30
 		is_invincible = true
 		dodge_timer = DODGE_TIME
 		dodge_cooldown = DODGE_COOLDOWN
@@ -308,8 +364,10 @@ func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
 	print("[DAMAGE] Player took ", amount, " damage from: ", caller)
 
 	blade.take_damage(amount)
+	_diag_frames = 30
 
 	if knockback != Vector2.ZERO:
+		print("[DAMAGE] knockback applied: ", knockback.round(), " vel_before=", velocity.round())
 		velocity = knockback
 
 	emit_signal("player_hurt")

@@ -349,6 +349,10 @@ func _should_chain() -> bool:
 		return false
 	return global_position.distance_to(_player_ref.global_position) < 65.0
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		print("[RIVAL] PREDELETE — was_alive=%s hp=%d pos=%s" % [_is_alive, current_health, global_position.round()])
+
 func is_counterable() -> bool:
 	return _is_alive and _state == "attack" and _attack_phase == "windup"
 
