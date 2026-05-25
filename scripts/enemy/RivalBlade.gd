@@ -529,6 +529,10 @@ func _attack_process(delta: float) -> void:
 
 	match _attack_phase:
 		"windup":
+			# ── Per-frame pull-back animation ─────────────────────────────────
+			var t_raw := clampf(1.0 - _attack_phase_timer / data["windup"], 0.0, 1.0)
+			_update_windup_blades(data, _ease(t_raw))
+
 			# ── Feint check — fires once, at 45% of windup remaining ─────────
 			if _feint_window_open \
 					and _feint_chance > 0.0 \
@@ -771,23 +775,66 @@ func _set_blade_rest_positions() -> void:
 func _position_blades(data: Dictionary) -> void:
 	var fdir := _facing_dir()
 
-	var rad := deg_to_rad(_r_angle)
-	var ox  := cos(rad) * absf(data.get("r_radius", 20.0))
-	var oy  := sin(rad) * absf(data.get("r_radius", 20.0))
-	if fdir < 0.0:
-		ox = -ox
-	if _blade_right:
-		_blade_right.position = Vector2(ox, _REST_Y + oy)
-		_blade_right.rotation_degrees = 0.0
+	if data["r_start"] != data["r_end"]:
+		var rad := deg_to_rad(_r_angle)
+		var ox  := cos(rad) * absf(data.get("r_radius", 20.0))
+		var oy  := sin(rad) * absf(data.get("r_radius", 20.0))
+		if fdir < 0.0: ox = -ox
+		if _blade_right:
+			_blade_right.position = Vector2(ox, _REST_Y + oy)
+			_blade_right.rotation_degrees = (90.0 + _r_angle) * fdir
+	else:
+		if _blade_right:
+			_blade_right.position = Vector2(_rest_right_x, _REST_Y)
+			_blade_right.rotation_degrees = 0.0
 
-	rad = deg_to_rad(_l_angle)
-	ox  = cos(rad) * absf(data.get("l_radius", 20.0))
-	oy  = sin(rad) * absf(data.get("l_radius", 20.0))
-	if fdir < 0.0:
-		ox = -ox
-	if _blade_left:
-		_blade_left.position = Vector2(ox, _REST_Y + oy)
-		_blade_left.rotation_degrees = 0.0
+	if data["l_start"] != data["l_end"]:
+		var rad := deg_to_rad(_l_angle)
+		var ox  := cos(rad) * absf(data.get("l_radius", 20.0))
+		var oy  := sin(rad) * absf(data.get("l_radius", 20.0))
+		if fdir < 0.0: ox = -ox
+		if _blade_left:
+			_blade_left.position = Vector2(ox, _REST_Y + oy)
+			_blade_left.rotation_degrees = (90.0 + _l_angle) * fdir
+	else:
+		if _blade_left:
+			_blade_left.position = Vector2(_rest_left_x, _REST_Y)
+			_blade_left.rotation_degrees = 0.0
+
+func _update_windup_blades(data: Dictionary, t: float) -> void:
+	var fdir := _facing_dir()
+
+	if data.get("r_wfrac", 0.0) > 0.0:
+		var r_rad: float = float(data["r_start"])
+		var rad := deg_to_rad(r_rad)
+		var r_radius: float = float(data.get("r_radius", 20.0))
+		var ox: float = cos(rad) * r_radius
+		var oy: float = sin(rad) * r_radius
+		if fdir < 0.0: ox = -ox
+		if _blade_right:
+			_blade_right.position = Vector2(_rest_right_x, _REST_Y).lerp(
+				Vector2(ox, _REST_Y + oy), t)
+			_blade_right.rotation_degrees = lerpf(0.0, (90.0 + r_rad) * fdir, t)
+	else:
+		if _blade_right:
+			_blade_right.position = Vector2(_rest_right_x, _REST_Y)
+			_blade_right.rotation_degrees = 0.0
+
+	if data.get("l_wfrac", 0.0) > 0.0:
+		var l_rad: float = float(data["l_start"])
+		var rad := deg_to_rad(l_rad)
+		var l_radius: float = float(data.get("l_radius", 20.0))
+		var ox: float = cos(rad) * l_radius
+		var oy: float = sin(rad) * l_radius
+		if fdir < 0.0: ox = -ox
+		if _blade_left:
+			_blade_left.position = Vector2(_rest_left_x, _REST_Y).lerp(
+				Vector2(ox, _REST_Y + oy), t)
+			_blade_left.rotation_degrees = lerpf(0.0, (90.0 + l_rad) * fdir, t)
+	else:
+		if _blade_left:
+			_blade_left.position = Vector2(_rest_left_x, _REST_Y)
+			_blade_left.rotation_degrees = 0.0
 
 func _facing_dir() -> float:
 	if _player_ref and is_instance_valid(_player_ref):

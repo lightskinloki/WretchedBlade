@@ -152,7 +152,8 @@ Sections are NOT rooms. Each beat is a design intention; the generator decides h
 - [x] Player movement (walk, jump, dodge)
 - [x] 3-hit combo attack system (orbital blade arcs, input buffering, lunge)
 - [x] Nullman enemy (proximity, core-glow telegraph, pulse radial damage, counter)
-- [x] RivalBlade enemy (dual-wield, 3-hit combo AI, always faces target)
+- [x] RivalBlade enemy (dual-wield, two-layer AI: priority engine + per-fight learning)
+- [x] RivalBlade verbs: dodge (i-frames), counter (parry + riposte), feint, recovery trap, pacing
 - [x] Essence system (currency, drops, lost essence orbs)
 - [x] Checkpoints and death/respawn
 - [x] Hitstop, counter, blade damage states

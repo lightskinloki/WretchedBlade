@@ -112,55 +112,85 @@ Bottom has fracture-surface depth cutoff instead of flat edge.
 
 ### RivalBlade (`scripts/enemy/RivalBlade.gd`)
 
-Dual-wielding sword construct. Current state: patrol/chase/attack loop.
-Planned: full rewrite into proper duel opponent.
+Dual-wielding sword construct with two-layer AI.
+915 lines. Two layers: priority decision engine + per-fight learning.
 
-**Current State:**
-| Property | Value |
-|---|---|
-| Health | 120 |
-| Move Speed | 100 px/s |
-| Chase Range | 200 px |
-| Attack CD | 1.8s |
-| Combo | 3-hit: Right Slash → Left Slash → Cross Slash |
-| Combo Chain | Auto-chains if within 65px, resets to 0 otherwise |
-| Stun Duration | 1.0s on counter, 0.10s on damage |
+**Layer 1 — Priority Decision Engine:**
+Reads `WretchedBlade.current_state` every frame via `_tick_decision()`.
+One decision roll per player attack state change (`_dodge_roll_done` / `_counter_roll_done` guards).
+
+| Priority | State | Trigger | Behavior |
+|---|---|---|---|
+| 1 | `dodge` | Player WINDUP, dist < 80px, CD ready, roll ≤ aggression | 2D dash away from player, i-frames, 0.8s CD, blue flash |
+| 2 | `counter` | Player ACTIVE, dist < 90px, CD ready, roll ≤ counter_chance | Parry pose 0.28s, absorbs hit → riposte 10 dmg, 1.2s CD, cyan flash |
+| 3 | `attack` (punish) | Player RECOVERY, dist < 65px, attack CD ready | Immediate attack start |
+| 4 | `attack` (pressure) | Player idle, dist < preferred_range (55-85px), attack CD ready | Attack with `_pressure_mod` on CD |
+| 5 | `pace` | Mid-range 80-145px | Strafe L/R / feint / idle micro-actions |
+| 6 | `chase` | Far > 145px or too close < 80px + CD > 0.3s | Approach or back off, vertical tracking |
+
+**Layer 2 — Per-Fight Learning:**
+All counters reset on Rival death.
+
+| Track | Threshold | Adaptation |
+|---|---|---|
+| Player countered ≥2/4 times | Feint_unlocked / feint_aggressive | `_feint_chance` 0.35 / 0.65 — abort windup at 45%, snap to dodge or pace |
+| Player dodges same direction 5+ times | Dodge pattern detected | `_attack_dir_bias` → `_choose_combo_start()` biases toward that sweep (Hit 0 for right, Hit 1 for left) |
+| Player punishes recovery ≥2/4 times | Recovery trap armed / aggressive | `_recovery_trap_chance` 0.30 / 0.55 — snap from recovery into counter when player starts windup |
+| Attack rate calculated every 5s | Passive (< 0.5/s) → pressure | `_pressure_mod = 0.6` (attack CD × 0.6) |
+| Attack rate calculated every 5s | Aggressive (> 2/s) → reaction | `_counter_chance += 0.25` (cap 0.95), pressure_mod = 1.0 |
+
+**Personality** (per Rival instance, randomized in `_ready`):
+- `_aggression: float` (0.3–0.9) — probability to dodge
+- `_preferred_range: float` (55–85px) — pressure attack distance
+- `_counter_chance: float` (0.3–0.8) — probability to attempt counter
+
+**States:** `patrol` | `chase` | `pace` | `attack` | `dodge` | `counter` | `stun`
+
+**Movement:**
+- `MOVE_SPEED = 100`, `VERTICAL_SPEED = 75` — 2D tracking (X + Y)
+- Patrol: horizontal patrol + vertical drift toward spawn height
+- Chase: approach or back off (< 42px → retreat) + vertical player tracking
+- Pace: 30% strafe L / 30% strafe R / 18% feint burst / 22% idle
+- Dodge: 2D normalized away from player, `DODGE_SPEED = 320`
+
+**Combo System:**
+- 3-hit: Right Slash → Left Slash → Cross Slash (with dodge-bias combo start)
+- Combo chain: auto-chain within 65px, non-sequential via `_choose_combo_start()`
+- First hit of fresh chain biased 70% toward dodge-catching sweep (after 5+ observations)
+- Attack CD: `ATTACK_CD_BASE (1.8) × _pressure_mod`
 
 **Hitboxes:**
 - Per-blade Area2D children of each blade Sprite2D
 - Shape: 18×60 Rectangle
 - Debug overlay: semi-transparent red ColorRect
 - Enable/disable per combo hit (only swinging blade monitors)
+- Damage per hit: `RIVAL_COMBO[stage]["damage"]` (8/8/14)
 
-**Planned AI Rewrite (target ~550-600 lines):**
-Priority-based decision engine reading player state:
+**Combat Interface:**
+- `is_counterable()` — true during attack windup
+- `countered()` — player parried → stun 1.0s, pink flash, calls `_adapt_counter_response()`
+- `take_damage()` — if countering → absorb + riposte 10 dmg; else normal stagger/death
+- `_on_hitbox_entered()` — if dodging → i-frame skip; else deal per-combo damage
+- `_notification(NOTIFICATION_PREDELETE)` — logs death state for debugging
 
-| Priority | Decision | Condition |
-|---|---|---|
-| 1 | Dodge | Player attack windup + Rival in range |
-| 2 | Counter | Player attack active + Rival in window |
-| 3 | Punish | Player recovery + Rival close |
-| 4 | Pressure | Rival advantage, player blocking/passive |
-| 5 | Pace | Mid-range (80-140px) — strafe, pause, feint |
-| 6 | Approach | Far range — close distance |
+**Counter Deflect:** If hit by player during counter state, Rival absorbs the blow, flashes bright blue, and deals `COUNTER_RIPOSTE_DAMAGE (10)` back to the player. Only one successful counter deflect per counter window.
 
-**Planned Verbs:**
-- Dodge: dash with i-frames, 0.8s cooldown (matches player)
-- Counter: parry player windup attacks
-- Attack selection: contextual (not sequential) by distance and situation
-- Personality: per-Rival randomization (`_aggression`, `_preferred_range`)
+**Feint:** At 45% windup remaining, rolls against `_feint_chance`. If triggered: abort windup, snap blades to rest (0.12s), yellow flash. If dodge CD ready → execute dodge; else → pace state.
+
+**Recovery Trap:** During recovery phase, monitors player blade state. If player enters WINDUP, rolls against `_recovery_trap_chance`. If triggered: snap blades to rest (0.08s), immediately start counter.
 
 ---
 
 ## Combat Flow Reference
 
-Normal RivalBlade duel loop (future state):
+Typical RivalBlade duel loop:
 ```
 Player approaches         → Rival paces (mid-range strafe)
 Player attacks (windup)   → Rival reads state → dodge OR counter
 Player in recovery        → Rival punishes → attacks
 Both at range             → Footsies — approach/dodge/feint
 Rival advantage           → Rival presses advantage → attack string
+Player counters           → Rival learns → adapts (feint, recovery trap, bias)
 ```
 
 Key: `WretchedBlade.current_state` is exposed — Rival reads this for all decisions.

@@ -130,7 +130,7 @@ Open the project in Godot 4 (`project.godot` at `C:\WretchedBlade`), ensure `Gam
 
 ### Implemented
 - Combat system: 3-hit combo with orbital blade arcs, input buffering, auto-lunge
-- Enemies: Nullman (proximity detection, core-glow telegraph, pulse radial damage, counter/stun), RivalBlade (dual-wield, 3-hit combo AI, always faces player)
+- Enemies: Nullman (proximity detection, core-glow telegraph, pulse radial damage, counter/stun), RivalBlade (dual-wield, two-layer AI: priority decision engine + per-fight learning, dodge/counter/punish/pressure/pace footsies, feint, recovery traps, adaptive combo bias)
 - Lock-on system: `LockOn` autoload singleton, Tab to toggle nearest enemy, facing override when locked
 - Lock-on reticle: diamond targeting ring with pulse animation, follows locked target
 - World generation: Procedural rooms (floor, platforms, nullstone, abyss pits), linear room-to-room transitions
@@ -143,6 +143,10 @@ Open the project in Godot 4 (`project.godot` at `C:\WretchedBlade`), ensure `Gam
 - RivalBlade per-blade hitboxes: hitboxes follow blade sprites as children, per-combo-hit enable/disable
 - Velocity spike detector: prints physics stacking collisions from move_and_slide for debugging
 - Damage-source logging: player take_damage prints caller file/line/function via get_stack()
+- NaN safety: safe_margin 1.0px on CharacterBody2D + post-move_and_slide sanitize
+- RivalBlade counter deflect system: absorbs hits during counter, ripostes 10 dmg to player
+- RivalBlade learning system: feint, recovery traps, dodge-direction combo bias, aggression-adaptive pressure_mod
+- Named constants extracted: COMBO_WINDOW, LUNGE_RANGE, COUNTER_RANGE, COUNTER_DAMAGE, layer masks
 
 ### In Development
 - Overworld map hub screen
@@ -151,7 +155,6 @@ Open the project in Godot 4 (`project.godot` at `C:\WretchedBlade`), ensure `Gam
 - Puzzle system (pressure plates, breakable walls, platforming, corpse puzzles)
 - Seven regions with distinct Hex themes and generation parameters
 - Dominator boss AI (multi-phase, Hex-themed attack patterns)
-- RivalBlade AI rewrite: full player verb set (dodge, counter, attack choice, pacing) with contextual decision engine
 - Weapon Form system (absorbed from defeated Dominators)
 - Tuning Fork / Resonance Art system
 - Essence sinks: Lesser Hex purchases, Resonance Art fuel
