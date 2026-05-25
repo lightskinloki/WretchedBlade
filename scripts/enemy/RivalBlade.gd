@@ -910,4 +910,6 @@ func _on_hitbox_entered(body: Node) -> void:
 	if _is_dodging:
 		return
 	if body.is_in_group("player") and _is_alive:
-		body.take_damage(15)
+		# Use the current combo hit's damage value — cross slash hits harder than singles
+		var dmg: int = RIVAL_COMBO[_combo_stage]["damage"]
+		body.take_damage(dmg)

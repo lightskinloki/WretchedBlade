@@ -243,7 +243,7 @@ func _add_abyss_kill_trigger(parent: Node2D, room_w: int, room_h: int) -> void:
 	area.name = "AbyssKillTrigger"
 	area.monitoring = false  # Armed after a short delay so room-entry teleport can't false-trigger
 	area.monitorable = false
-	area.collision_mask = 4 | 2  # Layer 3 (player) + layer 2 (enemies)
+	area.collision_mask = LAYER_PLAYER | LAYER_ENEMY
 
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()

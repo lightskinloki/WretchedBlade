@@ -22,6 +22,11 @@ enum AttackState { IDLE, WINDUP, ACTIVE, RECOVERY }
 var current_state := AttackState.IDLE
 var state_timer   := 0.0
 
+const COMBO_WINDOW   := 0.55   # Seconds after an attack where the next input chains
+const LUNGE_RANGE    := 180.0  # Max distance to auto-lunge toward an enemy on attack
+const COUNTER_RANGE  := 150.0  # Max distance to land a counter
+const COUNTER_DAMAGE := 12     # Damage dealt to enemy on a successful counter
+
 # Each attack: windup, active (hitbox on), recovery durations in seconds.
 # arc_start/end in degrees (0=right, 90=down, 180=left, -90/270=up).
 # windup_frac = fraction of arc covered during windup (0=static, 0.15=slight, 0.4=big pull-back).
@@ -279,7 +284,7 @@ func _ease_out_in(t: float) -> float:
 
 # ── Attacking ─────────────────────────────────────────────────────────────────
 func perform_attack() -> void:
-	combo_timer = 0.55
+	combo_timer = COMBO_WINDOW
 	if current_state != AttackState.IDLE:
 		_attack_buffered = true
 		return
@@ -310,7 +315,7 @@ func _lunge_to_enemy() -> void:
 		if d < nearest_dist:
 			nearest_dist = d
 			nearest = enemy
-	if nearest and nearest_dist < 180.0:
+	if nearest and nearest_dist < LUNGE_RANGE:
 		var parent := get_parent()
 		if parent and parent.has_method("lunge"):
 			var dir := 1.0 if nearest.global_position.x > global_position.x else -1.0
@@ -338,14 +343,14 @@ func perform_counter() -> void:
 			continue
 		if enemy.has_method("is_counterable") and enemy.is_counterable():
 			var dist := global_position.distance_to(enemy.global_position)
-			if dist > 150.0:
+			if dist > COUNTER_RANGE:
 				continue  # Too far
 			# Successful counter — interrupt and stun
 			if enemy.has_method("countered"):
 				enemy.countered()
 			# Deal counter damage
 			if enemy.has_method("take_damage"):
-				enemy.take_damage(12)
+				enemy.take_damage(COUNTER_DAMAGE)
 			# Visual feedback
 			var flash := create_tween()
 			flash.tween_property(blade_sprite, "modulate", Color(1.5, 1.5, 2.5, 1.0), 0.03)
