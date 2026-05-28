@@ -111,6 +111,10 @@ static func render_room(
 				floor_e += 1
 	print("  [DIAG] Phase E final: floor_tiles=%d" % floor_e)
 
+	# Phase E backstop — decoration can add ceiling spikes; re-sanitize portals
+	# so no decoration tile sits inside or directly above a portal opening.
+	_sanitize_portal_rects(grid, node, w, h)
+
 	return grid
 
 # ── Phase A: Grid initialization ────────────────────────────────────────────
@@ -193,7 +197,9 @@ static func _carve_portal(grid: Array, archetype: int, portal: RoomArchetype.Por
 			if bridge_floor + 1 >= 0 and bridge_floor + 1 < h:
 				grid[bridge_floor + 1][bx] = TILE_FLOOR
 
-			var air_top := maxi(1, bridge_floor - 3)
+			# Clear 5 tiles above the bridge floor so the player has headroom to
+			# jump up to the room floor if it sits 1-2 tiles higher than the bridge.
+			var air_top := maxi(1, bridge_floor - 5)
 			for ay in range(air_top, bridge_floor):
 				if ay >= 0 and ay < h and grid[ay][bx] == TILE_WALL:
 					grid[ay][bx] = TILE_EMPTY

@@ -305,13 +305,15 @@ func _attempt_portal_transition(target_node: int) -> void:
 	_current_node = target_node
 	_previous_node = prev
 	_load_room(_current_node, _previous_node)
-
-	# Re-enable physics after the room is built and player is placed
-	player.set_physics_process(true)
-
+	# Physics stays OFF during the flash + room-name overlay so the player is
+	# frozen at the portal mouth. fade_out brings the room into view first, then
+	# physics enables — the player visibly drops from a mid/high portal to the floor.
 	transition_screen.flash_purple()
 	await transition_screen.show_room_text(_room_label_for(target_node))
 	await transition_screen.fade_out()
+
+	# Re-enable physics now that the room is fully visible
+	player.set_physics_process(true)
 	_transitioning = false
 
 # â”€â”€ Puzzle trigger system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -368,26 +370,18 @@ func _find_spawn_from_grid(grid: Array, node: DungeonGraph.RoomNode, prev_node_i
 	var w := node.room_w
 	var h := node.room_h
 
-	# If entering from a previous room, spawn inward from that portal
+	# If entering from a previous room, place the player at the portal anchor —
+	# the floor of the portal opening itself, not a scanned floor below it.
+	# For ground portals this is the room floor; for mid/high portals the player
+	# stands at portal height and falls when physics enables after the fade.
 	if prev_node_id >= 0:
 		for portal in node.portals:
 			if portal.connected_node == prev_node_id:
 				var slot := _find_slot_def(node.archetype, portal.slot_id)
 				if slot != null:
-					var pos := slot.get_tile_position(w, h)
-					var portal_floor := pos.y + slot.tile_h - 2
-					var inward := 1 if slot.side == "left" else -1
 					var anchor := slot.get_floor_anchor(w, h)
-					print("  [DIAG] spawn scan via prev: slot=%s anchor=(%d,%d) inward=%d portal_floor=%d" % [portal.slot_id, anchor.x, anchor.y, inward, portal_floor])
-					var safe := _scan_safe_spawn(grid, anchor.x, portal_floor, inward, w, h)
-					if safe.x >= 0:
-						print("  [DIAG] spawn found at safe=(%d,%d)" % [safe.x, safe.y])
-						return Vector2((float(safe.x) + 0.5) * float(TILE_SIZE), float(safe.y) * float(TILE_SIZE) - 21.0)
-					safe = _scan_safe_spawn(grid, anchor.x - 1, portal_floor, inward, w, h)
-					if safe.x >= 0:
-						print("  [DIAG] spawn found at safe=(%d,%d) (offset -1)" % [safe.x, safe.y])
-						return Vector2((float(safe.x) + 0.5) * float(TILE_SIZE), float(safe.y) * float(TILE_SIZE) - 21.0)
-					print("  [DIAG] spawn scan FAILED for slot=%s" % portal.slot_id)
+					print("  [DIAG] spawn at portal anchor: slot=%s anchor=(%d,%d)" % [portal.slot_id, anchor.x, anchor.y])
+					return Vector2(float(anchor.x) * float(TILE_SIZE) + 8.0, float(anchor.y) * float(TILE_SIZE) - 21.0)
 
 	# First room or fallback: scan from the room's own portals
 	for portal in node.portals:
@@ -417,6 +411,15 @@ func _find_spawn_from_grid(grid: Array, node: DungeonGraph.RoomNode, prev_node_i
 # Starts at start_x and moves in direction dx, covering the full room width.
 # Returns Vector2i(column, floor_row) or (-1, -1) if nothing found.
 static func _scan_safe_spawn(grid: Array, start_x: int, target_floor_y: int, dx: int, w: int, h: int) -> Vector2i:
+	# Priority pass: scan the portal column straight down so the player lands
+	# directly below mid/high portals instead of drifting far into the room.
+	var portal_col := start_x
+	if portal_col >= 1 and portal_col < w - 1:
+		for fy in range(maxi(2, target_floor_y), mini(h - 1, h)):
+			if fy > 0 and grid[fy][portal_col] == 1 and grid[fy - 1][portal_col] == 0:
+				return Vector2i(portal_col, fy)
+
+	# Fallback: sweep inward with ±4-row window around the portal floor height.
 	var max_steps := w
 	for step in range(max_steps):
 		var tx := start_x + step * dx

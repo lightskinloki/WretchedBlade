@@ -212,15 +212,60 @@ static func _pick_spare_slot(archetype: int, node_id: int, graph: DungeonGraph, 
 	if node == null:
 		return ""
 	var used: Dictionary = {}
+	var used_sides: Dictionary = {}
 	for p in node.portals:
 		used[p.slot_id] = true
-	var candidates: Array[RoomArchetype.PortalSlot] = []
+	# Determine which sides are already in use on this node
+	for s in slots:
+		if used.has(s.slot_id):
+			used_sides[s.side] = true
+
+	var all_free: Array[RoomArchetype.PortalSlot] = []
+	var preferred: Array[RoomArchetype.PortalSlot] = []
 	for s in slots:
 		if not used.has(s.slot_id):
-			candidates.append(s)
-	if candidates.is_empty():
-		return ""
-	return candidates[rng.randi_range(0, candidates.size() - 1)].slot_id
+			all_free.append(s)
+			# Prefer a side not yet used — ensures entry+exit on opposite sides
+			if not used_sides.has(s.side):
+				preferred.append(s)
+
+	if not preferred.is_empty():
+		return preferred[rng.randi_range(0, preferred.size() - 1)].slot_id
+	if not all_free.is_empty():
+		return all_free[rng.randi_range(0, all_free.size() - 1)].slot_id
+	return ""
+
+# Returns "left" or "right" for a given slot_id on an archetype.
+static func _get_slot_side(archetype: int, slot_id: String) -> String:
+	var slots := RoomArchetype.get_available_portal_slots(archetype)
+	for s in slots:
+		if s.slot_id == slot_id:
+			return s.side
+	return "right"
+
+# Picks a free slot on the given side of a node. Falls back to any free slot if
+# the preferred side has no free slots, and finally to any free slot at all.
+static func _pick_slot_on_side(archetype: int, side: String, node_id: int, graph: DungeonGraph, rng: RandomNumberGenerator) -> String:
+	var slots := RoomArchetype.get_available_portal_slots(archetype)
+	var node := graph.get_node(node_id)
+	var used: Dictionary = {}
+	if node != null:
+		for p in node.portals:
+			used[p.slot_id] = true
+
+	var on_side: Array[RoomArchetype.PortalSlot] = []
+	var any_free: Array[RoomArchetype.PortalSlot] = []
+	for s in slots:
+		if not used.has(s.slot_id):
+			any_free.append(s)
+			if s.side == side:
+				on_side.append(s)
+
+	if not on_side.is_empty():
+		return on_side[rng.randi_range(0, on_side.size() - 1)].slot_id
+	if not any_free.is_empty():
+		return any_free[rng.randi_range(0, any_free.size() - 1)].slot_id
+	return ""
 
 # ── Branch generation helpers ─────────────────────────────────────────────────
 # Builds a linear chain of branch rooms. Last room is a dead-end with a secret.
@@ -236,7 +281,11 @@ static func _build_linear_branch(graph: DungeonGraph, origin_id: int, origin_slo
 		var bh := rng.randi_range(bdims.min_h, bdims.max_h)
 		var bid := graph.create_node(branch_arch, bw, bh, -1)
 
-		var entry_slot := _pick_entry_slot(branch_arch, rng)
+		# Entry side is opposite of the source slot's side so the player
+		# always exits from the opposite side of the room they entered from.
+		var src_side := _get_slot_side(graph.get_node(prev_id).archetype, prev_slot)
+		var entry_side := "left" if src_side == "right" else "right"
+		var entry_slot := _pick_slot_on_side(branch_arch, entry_side, bid, graph, rng)
 		graph.connect_nodes(prev_id, bid, prev_slot, entry_slot)
 
 		prev_id = bid
@@ -279,7 +328,10 @@ static func _build_reconnect_branch(graph: DungeonGraph, origin_id: int, origin_
 		var bh := rng.randi_range(bdims.min_h, bdims.max_h)
 		var bid := graph.create_node(branch_arch, bw, bh, -1)
 
-		var entry_slot := _pick_entry_slot(branch_arch, rng)
+		# Entry side is opposite of the source slot's side.
+		var src_side := _get_slot_side(graph.get_node(prev_id).archetype, prev_slot)
+		var entry_side := "left" if src_side == "right" else "right"
+		var entry_slot := _pick_slot_on_side(branch_arch, entry_side, bid, graph, rng)
 		graph.connect_nodes(prev_id, bid, prev_slot, entry_slot)
 
 		prev_id = bid
