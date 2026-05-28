@@ -450,6 +450,22 @@ func _draw_humanoid_legs(img: Image, lx1: int, lx2: int, rx1: int, rx2: int, y1:
 			img.set_pixel(x, y, C_BODY_EDGE if e else C_BODY_FILL)
 
 # ── Tile generation ───────────────────────────────────────────────────────────
+func generate_tile_image(tile_type: TileType, seed_val: int = 0) -> Image:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	var noise := _make_noise(seed_val)
+	match tile_type:
+		TileType.FLOOR:          _draw_floor(img, noise)
+		TileType.WALL:           _draw_wall(img, noise)
+		TileType.NULLSTONE:      _draw_nullstone(img, noise)
+		TileType.CHECKPOINT:     _draw_checkpoint(img)
+		TileType.DOOR:           _draw_door(img, noise)
+		TileType.PLATFORM:       _draw_platform(img, noise)
+		TileType.ABYSS:          _draw_abyss(img, noise)
+		TileType.PRESSURE_PLATE: _draw_pressure_plate(img, noise)
+		TileType.LOCKED_DOOR:    _draw_locked_door(img, noise)
+		_:                       _draw_wall(img, noise)
+	return img
+
 func generate_tile_texture(tile_type: TileType, seed_val: int = 0) -> ImageTexture:
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	var noise := _make_noise(seed_val)
