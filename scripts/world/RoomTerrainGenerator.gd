@@ -99,6 +99,9 @@ static func render_room(
 		if not _portals_are_connected(grid, node, w, h):
 			push_warning("RoomTerrainGenerator: portal connectivity lost after carving in node %d" % node_id)
 
+	# Phase D backstop — guarantee portal openings are clear of TILE_WALL
+	_sanitize_portal_rects(grid, node, w, h)
+
 	# Phase E — Decoration
 	_apply_decor(grid, rng, w, h, theme)
 	var floor_e := 0
@@ -194,6 +197,44 @@ static func _carve_portal(grid: Array, archetype: int, portal: RoomArchetype.Por
 			for ay in range(air_top, bridge_floor):
 				if ay >= 0 and ay < h and grid[ay][bx] == TILE_WALL:
 					grid[ay][bx] = TILE_EMPTY
+
+# ── Phase D backstop: sanitize portal opening rects ────────────────────────
+# Guaranteed last-resort pass that runs after all carving phases.
+# If _carve_portal cleared correctly this is a no-op. If any edge case left
+# TILE_WALL inside the opening rect, this removes it and re-stamps the floor rows.
+static func _sanitize_portal_rects(grid: Array, node: DungeonGraph.RoomNode, w: int, h: int) -> void:
+	var slots := RoomArchetype.get_available_portal_slots(node.archetype)
+	for portal in node.portals:
+		if portal == null or portal.slot_id.is_empty():
+			continue
+		var slot_def: RoomArchetype.PortalSlot = null
+		for s in slots:
+			if s.slot_id == portal.slot_id:
+				slot_def = s
+				break
+		if slot_def == null:
+			continue
+
+		var pos: Vector2i = slot_def.get_tile_position(w, h)
+
+		# Force-clear any TILE_WALL inside the opening rect
+		for dx in range(slot_def.tile_w):
+			for dy in range(slot_def.tile_h):
+				var tx := pos.x + dx
+				var ty := pos.y + dy
+				if tx >= 0 and tx < w and ty >= 0 and ty < h:
+					if grid[ty][tx] == TILE_WALL:
+						grid[ty][tx] = TILE_EMPTY
+
+		# Guarantee floor at the bottom two rows of the opening
+		var floor_y := pos.y + slot_def.tile_h - 2
+		for dx in range(slot_def.tile_w):
+			var tx := pos.x + dx
+			if tx >= 0 and tx < w:
+				if floor_y >= 0 and floor_y < h:
+					grid[floor_y][tx] = TILE_FLOOR
+				if floor_y + 1 >= 0 and floor_y + 1 < h:
+					grid[floor_y + 1][tx] = TILE_FLOOR
 
 # ── Portal floor anchor extraction (uses same logic as RoomArchetype) ──────
 static func _get_floor_anchors(node: DungeonGraph.RoomNode, w: int, h: int) -> Array[Vector2i]:
