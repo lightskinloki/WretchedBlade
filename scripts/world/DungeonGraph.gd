@@ -221,6 +221,20 @@ func validate() -> Dictionary:
 			if n.secret_type == SecretType.NONE:
 				errors.append("dead end node %d has secret_type NONE" % nid)
 
+		# Duplicate portal slot_ids on same node
+		var used_slots: Dictionary = {}
+		for p in n.portals:
+			if used_slots.has(p.slot_id):
+				errors.append("node %d has duplicate portal slot_id '%s'" % [nid, p.slot_id])
+			used_slots[p.slot_id] = true
+
+		# Duplicate connected_nodes on same node (two doors → same room)
+		var used_connections: Dictionary = {}
+		for p in n.portals:
+			if used_connections.has(p.connected_node):
+				errors.append("node %d has two portals leading to same node %d" % [nid, p.connected_node])
+			used_connections[p.connected_node] = true
+
 	# Bidirectional consistency (check A->B implies B->A)
 	for nid in _node_map:
 		var n: RoomNode = _node_map[nid]
@@ -240,6 +254,22 @@ func validate() -> Dictionary:
 	# Critical path validity
 	if _critical_path.is_empty() and _node_map.size() > 1:
 		errors.append("critical path is empty but graph has %d nodes" % _node_map.size())
+
+	# BFS reachability: every node must be reachable from start node
+	if _start_node != -1 and has_node(_start_node):
+		var visited: Dictionary = {}
+		var queue: Array[int] = [_start_node]
+		visited[_start_node] = true
+		while not queue.is_empty():
+			var cur := queue.pop_front() as int
+			for p in _node_map[cur].portals:
+				var nb: int = p.connected_node
+				if not visited.has(nb):
+					visited[nb] = true
+					queue.append(nb)
+		for nid in _node_map:
+			if not visited.has(nid):
+				errors.append("node %d is not reachable from start %d" % [nid, _start_node])
 
 	return {
 		"valid": errors.is_empty(),

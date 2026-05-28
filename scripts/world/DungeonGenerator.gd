@@ -17,6 +17,11 @@ const MAX_ROOMS_PER_SECTION := 6
 const CHECKPOINT_INTERVAL   := 5
 const BRANCH_CHANCE_BASE    := 0.3
 
+# Branch topology constants
+const BRANCH_RECONNECT   := 0
+const BRANCH_CHAIN       := 1
+const BRANCH_SUB_DUNGEON := 2
+
 # ── Public API: Graph-based generation ────────────────────────────────────────
 # Produces a DungeonGraph from the given parameters.
 # params:
@@ -78,6 +83,7 @@ func generate_graph(params: Dictionary) -> DungeonGraph:
 	graph.set_critical_path(path_nodes)
 
 	# ── 4. Branches ─────────────────────────────────────────────────────────────
+
 	for i in range(path_nodes.size()):
 		var nid := path_nodes[i]
 		# Skip first 2 and last 2 nodes; they're structural
@@ -87,29 +93,24 @@ func generate_graph(params: Dictionary) -> DungeonGraph:
 		if rng.randf() >= BRANCH_CHANCE_BASE:
 			continue
 
-		var branch_depth := rng.randi_range(1, 2)
-		var parent_id := nid
-		var branch_entry_slot := _pick_spare_slot(graph.get_node(parent_id).archetype, parent_id, graph, rng)
-		if branch_entry_slot.is_empty():
+		# Pick branch topology: 35% reconnect, 40% chain, 25% sub-dungeon
+		var roll := rng.randf()
+		var btype := BRANCH_RECONNECT if roll < 0.35 else (BRANCH_CHAIN if roll < 0.75 else BRANCH_SUB_DUNGEON)
+
+		# Need a spare slot on the origin node for the branch exit
+		var origin_slot := _pick_spare_slot(graph.get_node(nid).archetype, nid, graph, rng)
+		if origin_slot.is_empty():
 			continue
 
-		for b in range(branch_depth):
-			var branch_arch := _branch_archetype(rng)
-			var bdims := RoomArchetype.get_dimension_range(branch_arch)
-			var bw := rng.randi_range(bdims.min_w, bdims.max_w)
-			var bh := rng.randi_range(bdims.min_h, bdims.max_h)
-			var bid := graph.create_node(branch_arch, bw, bh, -1)
-
-			var child_slot := _pick_entry_slot(branch_arch, rng)
-			graph.connect_nodes(parent_id, bid, branch_entry_slot, child_slot)
-
-			parent_id = bid
-			branch_entry_slot = _pick_entry_slot(branch_arch, rng)
-
-			# Terminal node — dead end with secret
-			if b == branch_depth - 1:
-				var secret_type := DungeonGraph.SecretType.SECRET_BOSS if rng.randf() < 0.5 else DungeonGraph.SecretType.SECRET_REWARD
-				graph.mark_dead_end(bid, secret_type)
+		match btype:
+			BRANCH_RECONNECT:
+				_build_reconnect_branch(graph, nid, i, path_nodes, origin_slot, rng)
+			BRANCH_CHAIN:
+				var depth := rng.randi_range(2, 3)
+				_build_linear_branch(graph, nid, origin_slot, depth, rng)
+			BRANCH_SUB_DUNGEON:
+				var depth := rng.randi_range(3, 5)
+				_build_linear_branch(graph, nid, origin_slot, depth, rng, true)
 
 	# ── 5. Checkpoints ──────────────────────────────────────────────────────────
 	for i in range(CHECKPOINT_INTERVAL, path_nodes.size(), CHECKPOINT_INTERVAL):
@@ -220,6 +221,77 @@ static func _pick_spare_slot(archetype: int, node_id: int, graph: DungeonGraph, 
 	if candidates.is_empty():
 		return ""
 	return candidates[rng.randi_range(0, candidates.size() - 1)].slot_id
+
+# ── Branch generation helpers ─────────────────────────────────────────────────
+# Builds a linear chain of branch rooms. Last room is a dead-end with a secret.
+#   always_boss=true → terminal secret is always SECRET_BOSS (sub-dungeon)
+static func _build_linear_branch(graph: DungeonGraph, origin_id: int, origin_slot: String, depth: int, rng: RandomNumberGenerator, always_boss: bool = false) -> void:
+	var prev_id := origin_id
+	var prev_slot := origin_slot
+
+	for b in range(depth):
+		var branch_arch := _branch_archetype(rng)
+		var bdims := RoomArchetype.get_dimension_range(branch_arch)
+		var bw := rng.randi_range(bdims.min_w, bdims.max_w)
+		var bh := rng.randi_range(bdims.min_h, bdims.max_h)
+		var bid := graph.create_node(branch_arch, bw, bh, -1)
+
+		var entry_slot := _pick_entry_slot(branch_arch, rng)
+		graph.connect_nodes(prev_id, bid, prev_slot, entry_slot)
+
+		prev_id = bid
+		prev_slot = _pick_spare_slot(branch_arch, bid, graph, rng)
+		if prev_slot.is_empty() and b + 1 < depth:
+			push_warning("DungeonGenerator: no spare slot on branch node %d, terminating early" % bid)
+			break
+
+		if b == depth - 1:
+			var secret_type := DungeonGraph.SecretType.SECRET_BOSS if (always_boss or rng.randf() < 0.5) else DungeonGraph.SecretType.SECRET_REWARD
+			graph.mark_dead_end(bid, secret_type)
+
+# Builds a reconnect branch: a chain from origin_id to a later critical-path node,
+# creating a shortcut that skips intermediate rooms. Falls back to linear chain
+# if no valid reconnection target is found.
+static func _build_reconnect_branch(graph: DungeonGraph, origin_id: int, origin_idx: int, path_nodes: Array[int], origin_slot: String, rng: RandomNumberGenerator) -> void:
+	var target_id := -1
+	var target_slot := ""
+	for j in range(origin_idx + 2, path_nodes.size()):
+		var candidate_id := path_nodes[j]
+		var slot := _pick_spare_slot(graph.get_node(candidate_id).archetype, candidate_id, graph, rng)
+		if not slot.is_empty():
+			target_id = candidate_id
+			target_slot = slot
+			break
+
+	if target_id < 0:
+		push_warning("DungeonGenerator: reconnect branch - no reconnection target found, falling back to chain")
+		_build_linear_branch(graph, origin_id, origin_slot, rng.randi_range(2, 3), rng)
+		return
+
+	var branch_count := rng.randi_range(1, 3)
+	var prev_id := origin_id
+	var prev_slot := origin_slot
+
+	for b in range(branch_count):
+		var branch_arch := _branch_archetype(rng)
+		var bdims := RoomArchetype.get_dimension_range(branch_arch)
+		var bw := rng.randi_range(bdims.min_w, bdims.max_w)
+		var bh := rng.randi_range(bdims.min_h, bdims.max_h)
+		var bid := graph.create_node(branch_arch, bw, bh, -1)
+
+		var entry_slot := _pick_entry_slot(branch_arch, rng)
+		graph.connect_nodes(prev_id, bid, prev_slot, entry_slot)
+
+		prev_id = bid
+		if b < branch_count - 1:
+			prev_slot = _pick_spare_slot(branch_arch, bid, graph, rng)
+			if prev_slot.is_empty():
+				push_warning("DungeonGenerator: no spare slot on reconnect branch node %d, terminating" % bid)
+				break
+		else:
+			# Last branch node — connect forward to the target CP node
+			var exit_slot := _pick_exit_slot(branch_arch, rng)
+			graph.connect_nodes(bid, target_id, exit_slot, target_slot)
 
 # ── Puzzle wiring (graph version) ────────────────────────────────────────────
 static func _wire_puzzle_graph(graph: DungeonGraph, trigger_node: int, path_nodes: Array[int]) -> void:

@@ -48,21 +48,65 @@ static func render_room(
 
 	# Phase B — Skeleton (portal-anchored generation)
 	var available_slots := RoomArchetype.get_available_portal_slots(node.archetype)
-	RoomArchetype.apply_skeleton(grid, node.archetype, rng, w, h, node.portals, available_slots)
+	var max_b_retries := 5
+	var b_attempt := 0
+	print("  [DIAG] Phase B: node=%d arch=%s w=%d h=%d portals=%d" % [node_id, RoomArchetype.get_archetype_name(node.archetype), w, h, node.portals.size()])
+	for p in node.portals:
+		print("    portal slot=%s connected=%d" % [p.slot_id, p.connected_node])
+	var anchors := _get_floor_anchors(node, w, h)
+	print("    floor anchors: ", anchors)
+	while b_attempt < max_b_retries:
+		RoomArchetype.apply_skeleton(grid, node.archetype, rng, w, h, node.portals, available_slots)
+		if _portals_are_connected(grid, node, w, h):
+			break
+		push_warning("RoomTerrainGenerator: skeleton connectivity failed for node %d (archetype %s), retry %d" % [node_id, RoomArchetype.get_archetype_name(node.archetype), b_attempt + 1])
+		b_attempt += 1
+		if b_attempt < max_b_retries:
+			grid = _init_grid(w, h)
+			rng.randi()
+	if b_attempt >= max_b_retries:
+		push_error("RoomTerrainGenerator: skeleton connectivity failed for node %d after %d attempts" % [node_id, max_b_retries])
+	# Count floor tiles after Phase B
+	var floor_count := 0
+	for yy in range(h):
+		for xx in range(w):
+			if grid[yy][xx] == 1:
+				floor_count += 1
+	print("  [DIAG] Phase B result: floor_tiles=%d" % floor_count)
 
 	# Phase C — Shape modifier
 	RegionTheme.apply_shape_modifier(grid, theme, rng, w, h)
+	var floor_c := 0
+	for yy in range(h):
+		for xx in range(w):
+			if grid[yy][xx] == 1:
+				floor_c += 1
+	print("  [DIAG] Phase C: floor_tiles=%d" % floor_c)
 
 	# Phase D — Portal carving
 	for portal in node.portals:
 		_carve_portal(grid, node.archetype, portal, w, h)
 
-	# Debug: verify all portal floors are reachable from each other
+	var floor_d := 0
+	for yy in range(h):
+		for xx in range(w):
+			if grid[yy][xx] == 1:
+				floor_d += 1
+	print("  [DIAG] Phase D: floor_tiles=%d" % floor_d)
+
+	# Debug: verify connectivity still holds after carving
 	if OS.is_debug_build():
-		_validate_portal_connectivity(grid, node, w, h)
+		if not _portals_are_connected(grid, node, w, h):
+			push_warning("RoomTerrainGenerator: portal connectivity lost after carving in node %d" % node_id)
 
 	# Phase E — Decoration
 	_apply_decor(grid, rng, w, h, theme)
+	var floor_e := 0
+	for yy in range(h):
+		for xx in range(w):
+			if grid[yy][xx] == 1:
+				floor_e += 1
+	print("  [DIAG] Phase E final: floor_tiles=%d" % floor_e)
 
 	return grid
 
@@ -151,32 +195,34 @@ static func _carve_portal(grid: Array, archetype: int, portal: RoomArchetype.Por
 				if ay >= 0 and ay < h and grid[ay][bx] == TILE_WALL:
 					grid[ay][bx] = TILE_EMPTY
 
-# ── Debug: Portal connectivity validation (BFS flood-fill) ─────────────────
-static func _validate_portal_connectivity(grid: Array, node: DungeonGraph.RoomNode, w: int, h: int) -> void:
-	var portal_floors: Array[Vector2i] = []
+# ── Portal floor anchor extraction (uses same logic as RoomArchetype) ──────
+static func _get_floor_anchors(node: DungeonGraph.RoomNode, w: int, h: int) -> Array[Vector2i]:
+	var anchors: Array[Vector2i] = []
+	var slots := RoomArchetype.get_available_portal_slots(node.archetype)
 	for portal in node.portals:
 		if portal == null or portal.slot_id.is_empty():
 			continue
-		var slots := RoomArchetype.get_available_portal_slots(node.archetype)
 		for s in slots:
 			if s.slot_id == portal.slot_id:
-				var pos := s.get_tile_position(w, h)
-				var fy := pos.y + s.tile_h - 2
-				var fx := pos.x
-				if fy >= 0 and fy < h and fx >= 0 and fx < w:
-					portal_floors.append(Vector2i(fx, fy))
+				var anchor := s.get_floor_anchor(w, h)
+				if anchor.y >= 0 and anchor.y < h and anchor.x >= 0 and anchor.x < w:
+					anchors.append(anchor)
 				break
+	return anchors
 
-	if portal_floors.size() < 2:
-		return
+# ── BFS flood-fill: returns true if all portal floor anchors are reachable ──
+static func _portals_are_connected(grid: Array, node: DungeonGraph.RoomNode, w: int, h: int) -> bool:
+	var anchors := _get_floor_anchors(node, w, h)
+	if anchors.size() < 2:
+		return true
 
-	var start := portal_floors[0]
+	var start := anchors[0]
 	var visited: Dictionary = {}
 	var queue: Array[Vector2i] = [start]
 	visited[start] = true
 
 	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
-	while queue.size() > 0:
+	while not queue.is_empty():
 		var cur: Vector2i = queue.pop_front()
 		for dir: Vector2i in dirs:
 			var nx: Vector2i = cur + dir
@@ -189,9 +235,10 @@ static func _validate_portal_connectivity(grid: Array, node: DungeonGraph.RoomNo
 			visited[nx] = true
 			queue.append(nx)
 
-	for i in range(1, portal_floors.size()):
-		if not visited.has(portal_floors[i]):
-			push_warning("RoomTerrainGenerator: portal %d is NOT reachable from portal 0 in node %d (archetype %d)" % [i, node.node_id, node.archetype])
+	for i in range(1, anchors.size()):
+		if not visited.has(anchors[i]):
+			return false
+	return true
 
 # ── Phase E: Decoration ────────────────────────────────────────────────────
 # Adds visual detail without affecting gameplay structure.

@@ -22,6 +22,7 @@ var _player_hurt_flash:    ColorRect
 var _checkpoint_nodes:     Array[int] = []
 
 const TILE_SIZE := 16
+const _RoomAnchorHelper = preload("res://scripts/world/RoomAnchorHelper.gd")
 
 func _ready() -> void:
 	add_child(world_gen)
@@ -68,6 +69,7 @@ func _start_dungeon(seed_val: int) -> void:
 	_previous_node = -1
 	_triggered_nodes = {}
 	_checkpoint_nodes = []
+	world_gen.clear_cache()
 
 	dungeon_graph = dungeon_generator.generate_graph({
 		"seed": seed_val,
@@ -114,13 +116,15 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 
 	world_gen.add_abyss_kill_trigger_for_room(world, node.room_w, node.room_h)
 
-	# Place portal triggers for ALL portals (including back to previous room)
+	# Place portal triggers for ALL portals.
+	# All portals are traversable in both directions (including the entry portal)
+	# so the player can always backtrack if they wish.
 	for portal in node.portals:
 		_place_portal_exit(node_id, portal, node)
 
 	# Puzzle trigger
 	if dungeon_graph.meta.has("trigger_node") and dungeon_graph.meta["trigger_node"] == node_id:
-		_place_puzzle_trigger(node)
+		_place_puzzle_trigger(node, grid)
 
 	# Spawn enemies
 	_spawn_enemies_for_node(node, grid)
@@ -174,23 +178,27 @@ func _place_portal_exit(_node_id: int, portal: RoomArchetype.PortalData, node: D
 		return
 
 	var pos: Vector2i = slot_def.get_tile_position(node.room_w, node.room_h)
-	# The bottom 2 rows of every portal slot are floor tiles, not walkable air.
-	# Use only the air portion for the glow and blocking wall.
 	var air_tiles := slot_def.tile_h - 2
 	var door_w := float(slot_def.tile_w) * float(TILE_SIZE)
 	var door_h := float(air_tiles) * float(TILE_SIZE)
 	var cx := (float(pos.x) + float(slot_def.tile_w) * 0.5) * float(TILE_SIZE)
 	var cy := (float(pos.y) + float(air_tiles) * 0.5) * float(TILE_SIZE)
 
-	# Invisible wall blocking the doorway (air opening only — floor tiles cover the rest)
+	var wall_w := 4.0
+	var wall_cx: float
+	if slot_def.side == "left":
+		wall_cx = -wall_w * 0.5
+	else:
+		wall_cx = float(node.room_w) * float(TILE_SIZE) + wall_w * 0.5
+
 	var wall := StaticBody2D.new()
 	wall.name = "PortalWall_%d" % portal.connected_node
 	var wall_shape := CollisionShape2D.new()
 	var wall_rect := RectangleShape2D.new()
-	wall_rect.size = Vector2(door_w, door_h)
+	wall_rect.size = Vector2(wall_w, door_h)
 	wall_shape.shape = wall_rect
 	wall.add_child(wall_shape)
-	wall.position = Vector2(cx, cy)
+	wall.position = Vector2(wall_cx, cy)
 	world.add_child(wall)
 
 	# Visual glow indicator at doorway
@@ -206,13 +214,12 @@ func _place_portal_exit(_node_id: int, portal: RoomArchetype.PortalData, node: D
 	tw.tween_property(glow, "modulate", Color(1, 1, 1, 0.8), 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(glow, "modulate", Color(1, 1, 1, 0.4), 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
-	# Detection zone: 1 tile wider than the wall, shifted inward so the player
-	# is inside it when they walk up to the portal wall (wall stops them at the edge).
+	# Detection zone
 	var area := Area2D.new()
 	area.name = "PortalArea_%d" % portal.connected_node
 	area.monitoring  = true
 	area.monitorable = false
-	area.collision_mask = 4  # Detect player on layer 3
+	area.collision_mask = 4
 
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
@@ -308,22 +315,22 @@ func _attempt_portal_transition(target_node: int) -> void:
 	_transitioning = false
 
 # â”€â”€ Puzzle trigger system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-func _place_puzzle_trigger(node: DungeonGraph.RoomNode) -> void:
+func _place_puzzle_trigger(node: DungeonGraph.RoomNode, grid: Array = []) -> void:
 	var area := Area2D.new()
 	area.name = "PuzzleTrigger"
-	area.collision_mask = 4  # Detect player on layer 3
+	area.collision_mask = 4
 
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
-	# Span the full walkable floor so the player can't bypass the trigger
 	var trigger_w := float(node.room_w - 6) * float(TILE_SIZE)
 	rect.size = Vector2(trigger_w, float(TILE_SIZE) * 3.0)
 	cs.shape = rect
 	area.add_child(cs)
 
 	var cx := float(node.room_w) * float(TILE_SIZE) * 0.5
-	var floor_y := node.room_h - 4
-	var cy := float(floor_y - 1) * float(TILE_SIZE)
+	var fc: Dictionary = _RoomAnchorHelper.get_room_floor_ceiling(grid) if grid.size() > 0 else {floor_hi = node.room_h - 4}
+	var floor_y: int = clampi(fc.floor_hi - 2, 3, node.room_h - 4) if fc.has("floor_hi") else node.room_h - 4
+	var cy := float(floor_y) * float(TILE_SIZE)
 	area.position = Vector2(cx, cy)
 
 	# Visual indicator: pressure plate sprite at center of trigger
@@ -356,7 +363,7 @@ func _on_trigger_activated(_node_id: int) -> void:
 	if _near_portal_node >= 0:
 		_show_portal_prompt(_near_portal_node)
 
-# â”€â”€ Spawn / entry position â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ——————————————————————————————————————————————————————————————————————————————
 func _find_spawn_from_grid(grid: Array, node: DungeonGraph.RoomNode, prev_node_id: int) -> Vector2:
 	var w := node.room_w
 	var h := node.room_h
@@ -370,14 +377,17 @@ func _find_spawn_from_grid(grid: Array, node: DungeonGraph.RoomNode, prev_node_i
 					var pos := slot.get_tile_position(w, h)
 					var portal_floor := pos.y + slot.tile_h - 2
 					var inward := 1 if slot.side == "left" else -1
-					var start_x: int
-					if inward > 0:
-						start_x = pos.x + slot.tile_w + 1
-					else:
-						start_x = pos.x - 2
-					var safe := _scan_safe_spawn(grid, start_x, portal_floor, inward, w, h)
+					var anchor := slot.get_floor_anchor(w, h)
+					print("  [DIAG] spawn scan via prev: slot=%s anchor=(%d,%d) inward=%d portal_floor=%d" % [portal.slot_id, anchor.x, anchor.y, inward, portal_floor])
+					var safe := _scan_safe_spawn(grid, anchor.x, portal_floor, inward, w, h)
 					if safe.x >= 0:
-						return Vector2((float(safe.x) + 0.5) * float(TILE_SIZE), (float(safe.y) - 1.0) * float(TILE_SIZE))
+						print("  [DIAG] spawn found at safe=(%d,%d)" % [safe.x, safe.y])
+						return Vector2((float(safe.x) + 0.5) * float(TILE_SIZE), float(safe.y) * float(TILE_SIZE) - 21.0)
+					safe = _scan_safe_spawn(grid, anchor.x - 1, portal_floor, inward, w, h)
+					if safe.x >= 0:
+						print("  [DIAG] spawn found at safe=(%d,%d) (offset -1)" % [safe.x, safe.y])
+						return Vector2((float(safe.x) + 0.5) * float(TILE_SIZE), float(safe.y) * float(TILE_SIZE) - 21.0)
+					print("  [DIAG] spawn scan FAILED for slot=%s" % portal.slot_id)
 
 	# First room or fallback: scan from the room's own portals
 	for portal in node.portals:
@@ -386,16 +396,21 @@ func _find_spawn_from_grid(grid: Array, node: DungeonGraph.RoomNode, prev_node_i
 			var pos := slot.get_tile_position(w, h)
 			var portal_floor := pos.y + slot.tile_h - 2
 			var inward := 1 if slot.side == "left" else -1
-			var start_x: int
-			if inward > 0:
-				start_x = pos.x + slot.tile_w + 1
-			else:
-				start_x = pos.x - 2
-			var safe := _scan_safe_spawn(grid, start_x, portal_floor, inward, w, h)
+			var anchor := slot.get_floor_anchor(w, h)
+			var safe := _scan_safe_spawn(grid, anchor.x, portal_floor, inward, w, h)
 			if safe.x >= 0:
-				return Vector2((float(safe.x) + 0.5) * float(TILE_SIZE), (float(safe.y) - 1.0) * float(TILE_SIZE))
+				return Vector2((float(safe.x) + 0.5) * float(TILE_SIZE), float(safe.y) * float(TILE_SIZE) - 21.0)
+			safe = _scan_safe_spawn(grid, anchor.x - 1, portal_floor, inward, w, h)
+			if safe.x >= 0:
+				return Vector2((float(safe.x) + 0.5) * float(TILE_SIZE), float(safe.y) * float(TILE_SIZE) - 21.0)
 
-	# Absolute fallback: hardcoded center
+	# Fallback: scan grid for a floor tile near center-left
+	var mid_x := w / 4
+	var fc: Dictionary = _RoomAnchorHelper.get_room_floor_ceiling(grid) if grid.size() > 0 else {floor_hi = -1}
+	if fc.get("floor_hi", -1) >= 0:
+		print("  [DIAG] spawn fallback via RoomAnchorHelper: floor_hi=%d" % fc.floor_hi)
+		return Vector2(float(mid_x) * float(TILE_SIZE), float(fc.floor_hi) * float(TILE_SIZE) - 21.0)
+	print("  [DIAG] spawn HARDCODED FALLBACK: h=%d" % h)
 	return Vector2(float(TILE_SIZE) * 4.0, float(h - 6) * float(TILE_SIZE))
 
 # Scans the grid for a column where grid[fy][tx] == FLOOR and grid[fy-1][tx] == EMPTY.
@@ -410,6 +425,11 @@ static func _scan_safe_spawn(grid: Array, start_x: int, target_floor_y: int, dx:
 		for fy in range(maxi(2, target_floor_y - 4), mini(h - 1, target_floor_y + 5)):
 			if fy > 0 and grid[fy][tx] == 1 and grid[fy - 1][tx] == 0:
 				return Vector2i(tx, fy)
+		if OS.is_debug_build() and step < 5:
+			var cell_states := ""
+			for fy in range(maxi(2, target_floor_y - 4), mini(h - 1, target_floor_y + 5)):
+				cell_states += "%d=%d " % [fy, grid[fy][tx] if fy < grid.size() and tx < grid[0].size() else -1]
+			print("    [DIAG] scan col %d: %s" % [tx, cell_states])
 	return Vector2i(-1, -1)
 
 # â”€â”€ Room label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

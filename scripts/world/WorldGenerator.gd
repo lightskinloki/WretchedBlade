@@ -34,6 +34,13 @@ const ROOM_H     := 22  # Tiles tall
 # ── Cached textures (generated once, reused for every tile) ──────────────────
 var _tex: Dictionary = {}
 
+# ── Room grid cache — persists generated grids so revisiting a room returns
+# the same layout. Keyed by node_id. Cleared on new dungeon start.
+var _grid_cache: Dictionary = {}
+
+func clear_cache() -> void:
+	_grid_cache = {}
+
 func _ready() -> void:
 	_cache_textures()
 
@@ -53,7 +60,11 @@ func _cache_textures() -> void:
 # RoomTerrainGenerator pipeline (archetype skeleton → theme shape →
 # portal carving → decoration).
 func build_grid_for_graph_node(graph: DungeonGraph, node_id: int, rng: RandomNumberGenerator, theme: int) -> Array:
-	return RoomTerrainGenerator.render_room(graph, node_id, rng, theme)
+	if _grid_cache.has(node_id):
+		return _grid_cache[node_id].duplicate(true)
+	var grid: Array = RoomTerrainGenerator.render_room(graph, node_id, rng, theme)
+	_grid_cache[node_id] = grid.duplicate(true)
+	return grid
 
 
 
@@ -62,8 +73,10 @@ func build_grid_for_graph_node(graph: DungeonGraph, node_id: int, rng: RandomNum
 # If suppress_triggers is true, does not add the default exit/abyss triggers
 # (Game.gd handles them internally when using DungeonPlan).
 func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false) -> void:
-	for y in range(grid.size()):
-		for x in range(grid[y].size()):
+	var room_w: int = grid[0].size() if grid.size() > 0 else ROOM_W
+	var room_h: int = grid.size()
+	for y in range(room_h):
+		for x in range(room_w):
 			var id: int = grid[y][x]
 			if id == EMPTY or id == ABYSS:
 				continue
@@ -98,8 +111,8 @@ func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false) ->
 				GameManager.set_checkpoint(Vector2(world_x, world_y - TILE_SIZE))
 
 	if not suppress_triggers:
-		_add_exit_trigger(parent)
-		_add_abyss_kill_trigger(parent, grid[0].size(), grid.size())
+		_add_exit_trigger(parent, room_w, room_h)
+		_add_abyss_kill_trigger(parent, room_w, room_h)
 
 # ── Enemy spawning ───────────────────────────────────────────────────────────
 # Spawns enemies based on a room spec dict (precise counts).
@@ -122,24 +135,24 @@ func spawn_enemies_from_spec(parent: Node2D, spec: Dictionary) -> void:
 
 	emit_signal("enemies_spawned", num_nullman + num_rival)
 
-# Scans the grid at tile column tx for the top floor row near expected_row.
-# Returns a pixel Y that places the entity 2 rows above the actual floor.
+# Scans the grid across tile column tx (and neighboring columns up to ±2) for
+# the top floor tile, from bottom to top. Returns a pixel Y that places the
+# entity 2 rows above the actual floor. Falls back to expected_row if no floor
+# tile is found.
 static func _find_enemy_spawn_y(grid: Array, tx: int, expected_row: int, room_h: int) -> float:
 	if grid.is_empty() or tx < 0 or tx >= grid[0].size():
 		return float((expected_row - 2) * TILE_SIZE)
-	# Search ±6 rows around the expected floor row
-	for dy in range(-6, 7):
-		var fy := expected_row + dy
-		if fy < 3 or fy >= room_h - 1:
-			continue
-		if grid[fy][tx] == FLOOR and grid[fy - 1][tx] != FLOOR:
-			# fy is the top floor tile; spawn 2 rows above it
-			return float((fy - 2) * TILE_SIZE)
+	var w: int = grid[0].size()
+	var x_min := maxi(0, tx - 2)
+	var x_max := mini(w - 1, tx + 2)
+	# Search from bottom to top for topmost FLOOR
+	for fy in range(room_h - 2, 3, -1):
+		for fx in range(x_min, x_max + 1):
+			if grid[fy][fx] == FLOOR and grid[fy - 1][fx] != FLOOR:
+				return float((fy - 2) * TILE_SIZE)
 	return float((expected_row - 2) * TILE_SIZE)
 
 func _spawn_nullman(parent: Node2D, rng: RandomNumberGenerator, count: int, seed_val: int, room_w: int = ROOM_W, room_h: int = ROOM_H, grid: Array = []) -> void:
-	var floor_y := room_h - 4
-
 	for i in range(count):
 		var nullman := CharacterBody2D.new()
 		nullman.set_script(load("res://scripts/enemy/Nullman.gd"))
@@ -148,7 +161,7 @@ func _spawn_nullman(parent: Node2D, rng: RandomNumberGenerator, count: int, seed
 
 		var spawn_x := rng.randf_range(float(TILE_SIZE) * 4.0, float(room_w - 4) * TILE_SIZE - 40.0)
 		var tile_x := clampi(int(spawn_x / float(TILE_SIZE)), 1, room_w - 2)
-		var spawn_y := _find_enemy_spawn_y(grid, tile_x, floor_y - 2, room_h)
+		var spawn_y := _find_enemy_spawn_y(grid, tile_x, room_h - 6, room_h)
 		nullman.position = Vector2(spawn_x, spawn_y)
 
 		# Add sprite (shard texture generated from room seed for variety)
@@ -171,8 +184,6 @@ func _spawn_nullman(parent: Node2D, rng: RandomNumberGenerator, count: int, seed
 		parent.add_child(nullman)
 
 func _spawn_rival(parent: Node2D, rng: RandomNumberGenerator, count: int, seed_val: int, room_w: int = ROOM_W, room_h: int = ROOM_H, grid: Array = []) -> void:
-	var floor_y := room_h - 4
-
 	for i in range(count):
 		var rival := CharacterBody2D.new()
 		rival.set_script(load("res://scripts/enemy/RivalBlade.gd"))
@@ -181,7 +192,7 @@ func _spawn_rival(parent: Node2D, rng: RandomNumberGenerator, count: int, seed_v
 
 		var spawn_x := rng.randf_range(float(TILE_SIZE) * 5.0, float(room_w - 6) * TILE_SIZE - 60.0)
 		var tile_x := clampi(int(spawn_x / float(TILE_SIZE)), 1, room_w - 2)
-		var spawn_y := _find_enemy_spawn_y(grid, tile_x, floor_y - 2, room_h)
+		var spawn_y := _find_enemy_spawn_y(grid, tile_x, room_h - 6, room_h)
 		rival.position = Vector2(spawn_x, spawn_y)
 
 		# Add collision (script creates body/blade/hitbox nodes itself)
@@ -202,32 +213,28 @@ func add_abyss_kill_trigger(parent: Node2D) -> void:
 func add_abyss_kill_trigger_for_room(parent: Node2D, room_w: int, room_h: int) -> void:
 	_add_abyss_kill_trigger(parent, room_w, room_h)
 
-func get_entry_position() -> Vector2:
-	var floor_y := ROOM_H - 4
-	return Vector2(4 * TILE_SIZE, (floor_y - 2) * TILE_SIZE)
+func get_entry_position(room_h: int = ROOM_H) -> Vector2:
+	return Vector2(4 * TILE_SIZE, (room_h - 6) * TILE_SIZE)
 
-# Spawns an invisible Area2D at the right doorway.
-# When the player walks through, room_exit_reached fires once.
-func _add_exit_trigger(parent: Node2D) -> void:
-	var floor_y  := ROOM_H - 4
-	var door_top := floor_y - 5
+func _add_exit_trigger(parent: Node2D, room_w: int = ROOM_W, room_h: int = ROOM_H) -> void:
+	var door_bottom := maxi(3, room_h - 6)
+	var door_top := maxi(2, door_bottom - 5)
 
 	var area := Area2D.new()
 	area.name        = "RoomExitTrigger"
 	area.monitoring  = true
 	area.monitorable = false
-	area.collision_mask = 4  # Detect player on layer 3
+	area.collision_mask = 4
 
 	var cs   := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
-	rect.size  = Vector2(float(TILE_SIZE), float(TILE_SIZE) * 5.0)
+	rect.size  = Vector2(float(TILE_SIZE), float(TILE_SIZE) * float(door_bottom - door_top + 1))
 	cs.shape   = rect
 	area.add_child(cs)
 
-	# Centre the trigger on the doorway opening
 	area.position = Vector2(
-		float(ROOM_W - 1) * float(TILE_SIZE) + float(TILE_SIZE) * 0.5,
-		(float(door_top) + 2.5) * float(TILE_SIZE)
+		float(room_w - 1) * float(TILE_SIZE) + float(TILE_SIZE) * 0.5,
+		float(door_top + door_bottom) * float(TILE_SIZE) * 0.5
 	)
 
 	area.body_entered.connect(func(body: Node2D):
@@ -251,10 +258,9 @@ func _add_abyss_kill_trigger(parent: Node2D, room_w: int, room_h: int) -> void:
 	cs.shape = rect
 	area.add_child(cs)
 
-	var floor_y := room_h - 4
 	area.position = Vector2(
 		float(room_w) * float(TILE_SIZE) * 0.5,
-		float(floor_y + 4) * float(TILE_SIZE)
+		float(room_h) * float(TILE_SIZE)
 	)
 
 	area.body_entered.connect(func(body: Node2D):
