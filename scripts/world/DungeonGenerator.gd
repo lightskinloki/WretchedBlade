@@ -304,9 +304,18 @@ static func _build_linear_branch(graph: DungeonGraph, origin_id: int, origin_slo
 static func _build_reconnect_branch(graph: DungeonGraph, origin_id: int, origin_idx: int, path_nodes: Array[int], origin_slot: String, rng: RandomNumberGenerator) -> void:
 	var target_id := -1
 	var target_slot := ""
+	# Determine which side the target node must receive the reconnect portal on.
+	# Branch travel direction is opposite of the origin slot's side:
+	#   origin RIGHT → branch travels right → last exits RIGHT → target receives LEFT
+	#   origin LEFT  → branch travels left  → last exits RIGHT → target receives RIGHT
+	# In both cases, the player enters the target room continuing in the same
+	# direction they were traveling through the branch.
+	var origin_side := _get_slot_side(graph.get_node(origin_id).archetype, origin_slot)
+	var target_side := "left" if origin_side == "right" else "right"
 	for j in range(origin_idx + 2, path_nodes.size()):
 		var candidate_id := path_nodes[j]
-		var slot := _pick_spare_slot(graph.get_node(candidate_id).archetype, candidate_id, graph, rng)
+		var arch := graph.get_node(candidate_id).archetype
+		var slot := _pick_slot_on_side(arch, target_side, candidate_id, graph, rng)
 		if not slot.is_empty():
 			target_id = candidate_id
 			target_slot = slot
