@@ -69,6 +69,7 @@ var _room_h_px     := 352.0         # Set by Game.gd on room load (default 22*16
 var _last_attack_key  := false
 var _last_dodge_key   := false
 var _last_counter_key := false
+var _last_jump_key    := false
 var _last_lock_key    := false
 
 # Pre-generated pose textures
@@ -105,6 +106,24 @@ func set_room_bounds(w_tiles: int, h_tiles: int) -> void:
 	_room_w_px = float(w_tiles * 16)
 	_room_h_px = float(h_tiles * 16)
 	print("[PLAYER] room bounds set: %dx%d tiles → %.0fx%.0f px" % [w_tiles, h_tiles, _room_w_px, _room_h_px])
+
+func _record_hex_holds(timestamp: float) -> void:
+	if not blade.has_method("get_input_buffer"):
+		return
+	var buf: InputBuffer = blade.get_input_buffer()
+	if buf == null:
+		return
+	buf.record_hold("atk", Input.is_key_pressed(KEY_Z), timestamp)
+	buf.record_hold("counter", Input.is_key_pressed(KEY_C), timestamp)
+	buf.record_hold("jump", Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W), timestamp)
+	buf.record_hold("dodge", Input.is_key_pressed(KEY_X) or Input.is_key_pressed(KEY_SHIFT), timestamp)
+
+
+func _blade_record_action(action: String) -> void:
+	if not blade.has_method("record_action"):
+		return
+	blade.record_action(action, Time.get_ticks_usec() / 1000000.0)
+
 
 func _physics_process(delta: float) -> void:
 	# Log BEFORE the GameManager gate so we know if processing stops
@@ -150,6 +169,9 @@ func _physics_process(delta: float) -> void:
 
 	_read_keyboard_input()
 	_handle_dodge(delta)
+
+	var timestamp := Time.get_ticks_usec() / 1000000.0
+	_record_hex_holds(timestamp)
 
 	if not is_dodging:
 		_handle_gravity(delta)
@@ -405,9 +427,13 @@ func _read_keyboard_input() -> void:
 		input_move = 0.0
 		_kb_moved  = false
 
-	# Jump
-	if Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W):
+	# Jump (edge-triggered for hex buffer)
+	var jump_down := Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W)
+	if jump_down:
 		input_jump = true
+		if not _last_jump_key:
+			_blade_record_action("jump")
+	_last_jump_key = jump_down
 
 	# Vertical direction for omnidirectional dodge (held state, separate from jump)
 	if Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W):
@@ -424,16 +450,19 @@ func _read_keyboard_input() -> void:
 	var attack_down := Input.is_key_pressed(KEY_Z)
 	if attack_down and not _last_attack_key:
 		input_attack = true
+		_blade_record_action("atk")
 	_last_attack_key = attack_down
 
 	var dodge_down := Input.is_key_pressed(KEY_X) or Input.is_key_pressed(KEY_SHIFT)
 	if dodge_down and not _last_dodge_key:
 		input_dodge = true
+		_blade_record_action("dodge")
 	_last_dodge_key = dodge_down
 
 	var counter_down := Input.is_key_pressed(KEY_C)
 	if counter_down and not _last_counter_key:
 		input_counter = true
+		_blade_record_action("counter")
 	_last_counter_key = counter_down
 
 	var lock_down := Input.is_key_pressed(KEY_TAB)
@@ -473,7 +502,19 @@ func _lock_nearest() -> void:
 
 func set_move_input(dir: float)           -> void: input_move   = dir
 func set_move_vertical_input(dir: float)  -> void: input_move_vertical = dir
-func set_jump_input(pressed: bool)        -> void: input_jump   = pressed
-func set_attack_input(pressed: bool)      -> void: input_attack = pressed
-func set_dodge_input(pressed: bool)       -> void: input_dodge  = pressed
-func set_counter_input(pressed: bool)     -> void: input_counter = pressed
+func set_jump_input(pressed: bool)        -> void:
+	input_jump = pressed
+	if pressed:
+		_blade_record_action("jump")
+func set_attack_input(pressed: bool)      -> void:
+	input_attack = pressed
+	if pressed:
+		_blade_record_action("atk")
+func set_dodge_input(pressed: bool)       -> void:
+	input_dodge = pressed
+	if pressed:
+		_blade_record_action("dodge")
+func set_counter_input(pressed: bool)     -> void:
+	input_counter = pressed
+	if pressed:
+		_blade_record_action("counter")

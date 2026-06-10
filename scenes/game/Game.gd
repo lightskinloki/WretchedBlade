@@ -32,6 +32,24 @@ func _ready() -> void:
 	blade.blade_shattered.connect(func(): death_screen.show_death_screen())
 	blade.hit_connected.connect(hud.on_hit_connected)
 
+	# Unlock starting hex
+	var innate: HexAbility = HexAbility.new()
+	innate.id = "innate_eruption"
+	innate.display_name = "Innate Eruption"
+	innate.theme = HexAbility.HexTheme.NULLPULSE
+	innate.lore_blurb = "The Wretched Blade's Nullpulse hex — a raw Null essence burst that erupts from the blade itself. Hold the attack instinct for 0.4 seconds to release the stored energy."
+	innate.input_definition = {"type": "charge_release", "button": "atk", "duration": 1.0}
+	innate.pattern = {"type": "circle", "radius": 48.0}
+	innate.essence_cost = 0   # Innate — costs nothing to use
+	innate.cooldown = 12.0
+	innate.wall_damage = 1
+
+	# Starting essence for testing hexes
+	EssenceManager.gain_essence(50)
+	innate.enemy_damage = 6
+	innate.range = 48.0
+	HexManager.unlock_hex(innate)
+
 	touch_input.connect_to_player(player)
 	world.add_to_group("world")
 	EssenceManager.lost_essence_spawned.connect(_on_lost_essence_spawned)
@@ -59,6 +77,12 @@ func _ready() -> void:
 		ie.keycode = KEY_E
 		InputMap.add_action("interact")
 		InputMap.action_add_event("interact", ie)
+
+	if not InputMap.has_action("hex_inventory"):
+		var hv := InputEventKey.new()
+		hv.keycode = KEY_V
+		InputMap.add_action("hex_inventory")
+		InputMap.action_add_event("hex_inventory", hv)
 
 	_start_dungeon(randi())
 

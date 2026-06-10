@@ -28,6 +28,7 @@ const ABYSS      := 6   # Pit — falling in kills
 const DOOR       := 7
 const PRESSURE_PLATE := 8   # Puzzle trigger tile
 const LOCKED_DOOR    := 9   # Puzzle lock tile
+const HEX_WALL       := 10  # Wall that requires a hex ability to destroy
 
 const TILE_SIZE  := 16
 const ROOM_W     := 44  # Tiles wide
@@ -89,16 +90,16 @@ func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false) ->
 			# Visual sprite
 			var sprite        := Sprite2D.new()
 			sprite.position   = Vector2(world_x + TILE_SIZE * 0.5, world_y + TILE_SIZE * 0.5)
-			sprite.texture    = _tex.get(id, _tex[FLOOR])
+			sprite.texture    = _tex.get(id, _tex[FLOOR]) if id != HEX_WALL else _tex[WALL]
 			parent.add_child(sprite)
 
 			# Collision for solid tiles
-			if id in [FLOOR, WALL, PLATFORM, NULLSTONE, CHECKPOINT, LOCKED_DOOR]:
+			if id in [FLOOR, WALL, PLATFORM, NULLSTONE, CHECKPOINT, LOCKED_DOOR, HEX_WALL]:
 				var body: StaticBody2D
 				if id == PLATFORM:
 					body = DestructibleTile.new()
 					body.linked_sprite = sprite
-				elif id == WALL:
+				elif id == WALL or id == HEX_WALL:
 					var htile := _HexBreakableTile.new()
 					htile.linked_sprite = sprite
 					htile.position      = sprite.position
@@ -108,8 +109,6 @@ func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false) ->
 						hash(Vector2i(x, y))
 					)
 					htile.setup(src_img)
-					# HexBreakableTile manages its own collision grid — skip the
-					# shared shape block below by continuing to the next tile.
 					continue
 				else:
 					body = StaticBody2D.new()

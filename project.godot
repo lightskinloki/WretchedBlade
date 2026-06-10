@@ -25,6 +25,7 @@ GameManager="*res://autoload/GameManager.gd"
 EssenceManager="*res://autoload/EssenceManager.gd"
 PixelRenderer="*res://autoload/PixelRenderer.gd"
 LockOn="*res://autoload/LockOn.gd"
+HexManager="*res://autoload/HexManager.gd"
 
 [display]
 
@@ -32,6 +33,10 @@ window/size/viewport_width=844
 window/size/viewport_height=390
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[gdscript]
+
+warnings/inferred_variable_type=0
 
 [rendering]
 

@@ -15,6 +15,7 @@ signal hit_connected
 # ── Node references ───────────────────────────────────────────────────────────
 @onready var blade_sprite:  Sprite2D    = $BladeSprite
 @onready var attack_hitbox: Area2D      = $AttackHitbox
+@onready var hex_hitbox:    Area2D      = $HexHitbox
 
 # ── Attack State Machine ──────────────────────────────────────────────────────
 enum AttackState { IDLE, WINDUP, ACTIVE, RECOVERY }
@@ -82,6 +83,19 @@ var _playing_combo := 0      # Combo stage currently being animated
 var combo_timer    := 0.0
 var _attack_buffered := false
 
+# Hex system
+var input_buffer: InputBuffer = InputBuffer.new()
+var _hex_hitbox_shape: RectangleShape2D
+var _hex_shape_default_size: Vector2
+
+# Charge visual tracking
+var _charge_glow := 0.0  # 0.0–1.0 current glow intensity
+
+# Active hex data for hit callback
+var _active_hex_pattern: Dictionary = {}
+var _active_hex_wall_damage: int = 1
+var _active_hex_enemy_damage: int = 6
+
 # Orbital blade tracking
 var _arc_current   := 0.0
 
@@ -95,6 +109,19 @@ func _ready() -> void:
 	attack_hitbox.monitoring = false
 	attack_hitbox.collision_mask = 2 | 1  # Detect enemies (layer 2) + destructible geometry (layer 1)
 	attack_hitbox.body_entered.connect(_on_hit_body)
+
+	# Hex hitbox setup
+	hex_hitbox.monitoring = false
+	hex_hitbox.collision_mask = 2 | 1  # Same layers as attack: enemies + geometry
+	hex_hitbox.body_entered.connect(_on_hex_hit_body)
+	# Give hex hitbox its own shape resource (avoid sharing with attack hitbox)
+	var hex_col := hex_hitbox.get_child(0) as CollisionShape2D
+	_hex_hitbox_shape = RectangleShape2D.new()
+	_hex_hitbox_shape.size = Vector2(8, 28)
+	hex_col.shape = _hex_hitbox_shape
+	_hex_shape_default_size = _hex_hitbox_shape.size
+
+	HexManager.hex_triggered.connect(_on_hex_triggered)
 
 	# Temp: red overlay to visualise hitbox position/orientation
 	var dbg := ColorRect.new()
@@ -116,6 +143,13 @@ func _physics_process(delta: float) -> void:
 		combo_timer -= delta
 		if combo_timer <= 0.0:
 			current_combo = 0
+
+	# Poll hex inputs
+	var time := Time.get_ticks_usec() / 1000000.0
+	HexManager.poll_input(input_buffer, time)
+
+	# Charge visual update
+	_update_charge_visual(delta)
 
 func _set_rest_position() -> void:
 	var parent := get_parent()
@@ -331,6 +365,176 @@ func _on_hit_body(body: Node) -> void:
 		# Hitstop — freeze frame on impact (60ms real-time)
 		GameManager.trigger_hitstop(60)
 		hit_connected.emit()
+
+
+# ── Hex system ────────────────────────────────────────────────────────────────
+
+# Called by HexManager when a hex is successfully triggered (essence spent).
+func _on_hex_triggered(hex_id: String) -> void:
+	var hex: HexAbility = HexManager.get_hex(hex_id)
+	if hex == null:
+		return
+
+	fire_hex(hex)
+
+
+func fire_hex(hex: HexAbility) -> void:
+	var parent := get_parent()
+	var facing_right: bool = parent.is_facing_right if parent else true
+	var dir := 1.0 if facing_right else -1.0
+
+	# Shape the hex hitbox according to the pattern
+	match hex.pattern.get("type", "circle"):
+		"circle":
+			var raw_radius = hex.pattern.get("radius", hex.range)
+			var radius: float
+			radius = raw_radius
+			_hex_hitbox_shape.size = Vector2(radius * 2.0, radius * 2.0)
+			hex_hitbox.position = Vector2.ZERO
+		"line":
+			var raw_length = hex.pattern.get("length", hex.range)
+			var raw_halfw  = hex.pattern.get("half_width", 2.0)
+			var length: float
+			var half_w: float
+			length = raw_length
+			half_w = raw_halfw
+			_hex_hitbox_shape.size = Vector2(length, half_w * 2.0)
+			hex_hitbox.position = Vector2(dir * (length * 0.5 + 8.0), 0.0)
+
+	# Enable hitbox for one frame
+	hex_hitbox.monitoring = true
+	hex_hitbox.get_child(0).disabled = false
+
+	# Store current hex pattern so _on_hex_hit_body can reference it
+	_active_hex_pattern = hex.pattern
+	_active_hex_wall_damage = hex.wall_damage
+	_active_hex_enemy_damage = hex.enemy_damage
+
+	# Reset charge glow
+	_charge_glow = 0.0
+	blade_sprite.modulate = Color.WHITE
+	blade_sprite.scale = Vector2(1.25, 1.25)
+
+	# Visual feedback — bright purple flash on blade
+	var flash := create_tween()
+	flash.tween_property(blade_sprite, "modulate", Color(1.8, 0.8, 2.5, 1.0), 0.03)
+	flash.tween_property(blade_sprite, "modulate", Color.WHITE, 0.15)
+
+	# Burst particle ring
+	_spawn_hex_burst()
+
+	# Camera shake
+	var cam: Camera2D = get_tree().get_first_node_in_group("camera")
+	if cam:
+		_shake(cam, 5.0, 0.15)
+
+	# Schedule hitbox disable after physics frame
+	await get_tree().physics_frame
+	hex_hitbox.monitoring = false
+
+
+func _on_hex_hit_body(body: Node) -> void:
+	if body == get_parent():
+		return
+
+	# HexBreakableTile — pixel-erosion damage
+	if body.has_method("take_hex_damage"):
+		var global_impact := hex_hitbox.global_position
+		body.take_hex_damage(global_impact, _active_hex_pattern)
+		return
+
+	# DestructibleTile or enemy — regular damage
+	if body.has_method("take_damage"):
+		body.take_damage(_active_hex_enemy_damage)
+		GameManager.trigger_hitstop(40)  # Lighter hitstop for hex impact
+
+
+# ── Charge visual ─────────────────────────────────────────────────────────────
+
+func _update_charge_visual(delta: float) -> void:
+	if not input_buffer.is_charging("atk"):
+		if _charge_glow > 0.0:
+			_charge_glow = max(0.0, _charge_glow - delta * 3.0)
+			blade_sprite.modulate = Color.WHITE.lerp(Color(0.7, 0.2, 1.0, 1.0), _charge_glow)
+			blade_sprite.scale = Vector2(1.25, 1.25)
+		return
+
+	var t := Time.get_ticks_usec() / 1000000.0
+	var progress = input_buffer.get_charge_progress("atk", 1.0)
+	_charge_glow = progress
+
+	var glow_r: float
+	var glow_b: float
+	glow_r = 0.5 + progress * 0.3
+	glow_b = 0.3 + progress * 0.7
+	blade_sprite.modulate = Color(glow_r, 0.1, glow_b, 1.0)
+
+	if input_buffer.is_charged("atk"):
+		var pulse := 1.0 + sin(t * 20.0) * 0.04
+		blade_sprite.scale = Vector2(1.25 * pulse, 1.25 * pulse)
+		blade_sprite.modulate = Color(1.0, 0.3, 1.0, 1.0)
+	else:
+		var bob := 1.0 + sin(t * 8.0 + progress * 5.0) * 0.02
+		blade_sprite.scale = Vector2(1.25 * bob, 1.25 * bob)
+
+
+# ── Hex burst particles ───────────────────────────────────────────────────────
+
+func _spawn_hex_burst() -> void:
+	var world = get_tree().get_first_node_in_group("world")
+	if not world:
+		return
+
+	var center := global_position
+
+	# Radial burst ring
+	for i in range(12):
+		var shard := ColorRect.new()
+		shard.size = Vector2(5, 5)
+		shard.color = Color(0.8, 0.2, 1.0, 0.9)
+		shard.global_position = center
+		world.add_child(shard)
+
+		var angle := i * TAU / 12.0
+		var vel := Vector2(cos(angle), sin(angle)) * randf_range(60.0, 140.0)
+		var tween := create_tween()
+		tween.tween_property(shard, "global_position", center + vel * 0.45, 0.45)
+		tween.parallel().tween_property(shard, "color:a", 0.0, 0.45)
+		tween.parallel().tween_property(shard, "size", Vector2(2, 2), 0.45)
+		tween.tween_callback(shard.queue_free)
+
+	# Central flash
+	var flash_ring := ColorRect.new()
+	flash_ring.size = Vector2(96, 96)
+	flash_ring.color = Color(0.6, 0.0, 1.0, 0.4)
+	flash_ring.global_position = center - Vector2(48, 48)
+	flash_ring.rotation = randf() * TAU
+	world.add_child(flash_ring)
+
+	var ft := create_tween()
+	ft.tween_property(flash_ring, "size", Vector2(160, 160), 0.2)
+	ft.parallel().tween_property(flash_ring, "color:a", 0.0, 0.25)
+	ft.tween_callback(flash_ring.queue_free)
+
+
+# ── Input buffer ──────────────────────────────────────────────────────────────
+
+# Called per-frame for ongoing hold tracking (Player.gd _record_hex_holds)
+func record_input(action: String, is_held: bool, timestamp: float) -> void:
+	if is_held:
+		input_buffer.record_hold(action, true, timestamp)
+	else:
+		input_buffer.record_hold(action, false, timestamp)
+
+
+# Called on edge-triggered press (Player.gd _blade_record_action)
+func record_action(action: String, timestamp: float) -> void:
+	input_buffer.record_action(action, timestamp)
+
+
+func get_input_buffer() -> InputBuffer:
+	return input_buffer
+
 
 # ── Counter attack ────────────────────────────────────────────────────────────
 func perform_counter() -> void:

@@ -50,6 +50,13 @@ monitoring = false
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player/WretchedBlade/AttackHitbox"]
 shape = SubResource("Shape_hitbox")
 
+[node name="HexHitbox" type="Area2D" parent="Player/WretchedBlade"]
+position = Vector2(0.0, -10.0)
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player/WretchedBlade/HexHitbox"]
+shape = SubResource("Shape_hitbox")
+
 [node name="Camera2D" type="Camera2D" parent="Player"]
 zoom = Vector2(2.0, 2.0)
 
