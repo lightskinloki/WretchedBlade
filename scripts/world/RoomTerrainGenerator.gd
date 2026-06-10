@@ -279,6 +279,12 @@ static func _portals_are_connected(grid: Array, node: DungeonGraph.RoomNode, w: 
 				continue
 			if grid[nx.y][nx.x] != TILE_EMPTY and grid[nx.y][nx.x] != TILE_FLOOR:
 				continue
+			# Player-height clearance: the body is ~2 tiles tall, so a cell is
+			# only traversable if the cell above is not an unbreakable WALL.
+			# A 1-tile gap under a wall slab is impassable and must fail the
+			# check so the skeleton retry loop regenerates the room.
+			if nx.y - 1 >= 0 and grid[nx.y - 1][nx.x] == TILE_WALL:
+				continue
 			visited[nx] = true
 			queue.append(nx)
 
