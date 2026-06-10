@@ -443,7 +443,11 @@ func _on_hex_hit_body(body: Node) -> void:
 		body.take_hex_damage(global_impact, _active_hex_pattern)
 		return
 
-	# DestructibleTile or enemy — regular damage
+	# DestructibleTile (PLATFORM) is melee-breakable only — hexes pass through it
+	if body is DestructibleTile:
+		return
+
+	# Enemies — regular damage
 	if body.has_method("take_damage"):
 		body.take_damage(_active_hex_enemy_damage)
 		GameManager.trigger_hitstop(40)  # Lighter hitstop for hex impact

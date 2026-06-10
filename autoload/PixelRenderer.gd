@@ -750,6 +750,153 @@ func generate_glow_texture(px_radius: int) -> ImageTexture:
 				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 	return ImageTexture.create_from_image(img)
 
+# ── Boss sprite generation (BOSS_DESIGN.md Axis 7) ──────────────────────────
+# Renders a boss sprite from blueprint + phase. Each phase re-render adds
+# cracks, missing chunks, and brighter core glow.
+func generate_boss_texture(blueprint, phase: int = 1) -> ImageTexture:
+	var size: Vector2i = blueprint.texture_size
+	var w := size.x
+	var h := size.y
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+
+	var theme: Dictionary = BossHexThemes.get_data(blueprint.hex_theme)
+	var primary: Color = theme["primary"]
+	var secondary: Color = theme["secondary"]
+	var accent: Color = theme["accent"]
+	var glow: Color = theme["glow"]
+	var texture_style: String = theme["texture"]
+
+	var noise := _make_noise(blueprint.seed_val)
+	var chunk_noise := _make_noise(blueprint.seed_val + phase * 7919)
+	chunk_noise.frequency = 0.18
+
+	var cx := w * 0.5
+	var cy := h * 0.5
+
+	for y in range(h):
+		for x in range(w):
+			if not _boss_silhouette(blueprint.body_type, x, y, w, h, noise):
+				continue
+
+			# Phase decoration: missing chunks grow with phase
+			var missing_threshold := 0.0
+			match phase:
+				2: missing_threshold = 0.62
+				3: missing_threshold = 0.48
+			if missing_threshold > 0.0 and chunk_noise.get_noise_2d(x * 2.0, y * 2.0) > missing_threshold:
+				continue
+
+			# Theme texture overlay
+			var col := _boss_theme_color(texture_style, x, y, w, h, primary, secondary, accent, noise)
+
+			# Crack lines in phase 2+
+			if phase >= 2:
+				var crack := noise.get_noise_2d(x * 3.0 + 100.0, y * 3.0)
+				if absf(crack) < 0.04 * phase:
+					col = glow.darkened(0.2)
+
+			# Core glow — brighter and larger per phase
+			var dist_c := Vector2(x - cx, y - cy).length() / minf(cx, cy)
+			var glow_radius := 0.25 + 0.1 * (phase - 1)
+			if dist_c < glow_radius:
+				var t := 1.0 - dist_c / glow_radius
+				col = col.lerp(glow, t * (0.5 + 0.25 * (phase - 1)))
+
+			# Phase 3 desaturation toward white
+			if phase >= 3:
+				col = col.lerp(Color.WHITE, 0.2)
+
+			# Edge highlight
+			if not _boss_silhouette(blueprint.body_type, x, y - 1, w, h, noise):
+				col = col.lightened(0.25)
+
+			img.set_pixel(x, y, col)
+
+	return ImageTexture.create_from_image(img)
+
+# Body-type silhouette test in normalized sprite space.
+func _boss_silhouette(body_type: int, x: int, y: int, w: int, h: int, noise: FastNoiseLite) -> bool:
+	if x < 0 or y < 0 or x >= w or y >= h:
+		return false
+	var nx := float(x) / float(w)   # 0..1
+	var ny := float(y) / float(h)
+	match body_type:
+		BossBodyTypes.BodyType.BRUISER:
+			# Wide rectangle, rounded top, slight shoulders
+			if ny < 0.12:
+				return absf(nx - 0.5) < 0.28 - (0.12 - ny) * 1.2
+			return absf(nx - 0.5) < (0.42 if ny < 0.4 else 0.38)
+		BossBodyTypes.BodyType.SKIRMISHER:
+			# Taller rectangle, defined shoulders
+			if ny < 0.1:
+				return absf(nx - 0.5) < 0.2
+			if ny < 0.25:
+				return absf(nx - 0.5) < 0.4
+			return absf(nx - 0.5) < 0.3
+		BossBodyTypes.BodyType.SKITTERER:
+			# Oval body with leg stubs
+			var oval := Vector2((nx - 0.5) / 0.42, (ny - 0.4) / 0.34).length() < 1.0
+			var legs := ny > 0.65 and (fmod(nx * 5.0, 1.0) < 0.35) and ny < 0.95
+			return oval or legs
+		BossBodyTypes.BodyType.SENTINEL:
+			# Pillar: wide base tapering up
+			var half := lerpf(0.18, 0.45, ny)
+			return absf(nx - 0.5) < half
+		BossBodyTypes.BodyType.STALKER:
+			# Narrow, elongated, crouched forward lean
+			var lean := (ny - 0.5) * 0.15
+			return absf(nx - 0.5 - lean) < 0.22
+		BossBodyTypes.BodyType.COLOSSUS:
+			# Massive block with slight corner rounding
+			var ex := absf(nx - 0.5)
+			var ey := absf(ny - 0.5)
+			return ex < 0.46 and ey < 0.47 and (ex + ey) < 0.85
+		BossBodyTypes.BodyType.WRAITH:
+			# Wispy: noisy edges, gaps, trailing bottom
+			var base := absf(nx - 0.5) < 0.32 - ny * 0.1
+			var wisp := noise.get_noise_2d(x * 4.0, y * 4.0)
+			if ny > 0.7:
+				return base and wisp > -0.1 and fmod(nx * 4.0 + wisp, 1.0) < 0.5
+			return base and wisp > -0.45
+	return false
+
+# Theme overlay pattern colors.
+func _boss_theme_color(style: String, x: int, y: int, w: int, h: int, primary: Color, secondary: Color, accent: Color, noise: FastNoiseLite) -> Color:
+	var n := noise.get_noise_2d(x * 2.0, y * 2.0)
+	match style:
+		"cracks":
+			if absf(noise.get_noise_2d(x * 3.0, y * 1.5)) < 0.06:
+				return accent
+			return primary.lerp(secondary, (n + 1.0) * 0.25)
+		"voronoi":
+			var cell := noise.get_noise_2d(x * 5.0, y * 5.0)
+			if cell > 0.45:
+				return accent
+			return primary.lerp(secondary, clampf(cell + 0.5, 0.0, 1.0))
+		"rings":
+			var cx := w * 0.5
+			var cy := h * 0.5
+			var d := Vector2(x - cx, y - cy).length()
+			if int(d) % 4 < 2:
+				return primary
+			return secondary.lerp(accent, (n + 1.0) * 0.3)
+		"fractal":
+			var f := noise.get_noise_2d(x * 6.0, y * 6.0) + noise.get_noise_2d(x * 12.0, y * 12.0) * 0.5
+			return primary.lerp(secondary, clampf((f + 1.0) * 0.4, 0.0, 1.0))
+		"radial":
+			var cx2 := w * 0.5
+			var cy2 := h * 0.5
+			var dr := Vector2(x - cx2, y - cy2).length() / minf(cx2, cy2)
+			return primary.lerp(secondary, clampf(dr, 0.0, 1.0))
+		"grid":
+			if x % 5 == 0 or y % 5 == 0:
+				return accent
+			if n > 0.4:
+				return secondary
+			return primary
+	return primary.lerp(secondary, (n + 1.0) * 0.5)
+
 # Small diamond reticle for lock-on targeting indicator.
 func generate_lockon_reticle() -> ImageTexture:
 	var size := 24

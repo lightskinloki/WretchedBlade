@@ -168,6 +168,7 @@ func _physics_process(delta: float) -> void:
 			" vel=", velocity.round(), " room_h=", _room_h_px)
 
 	_read_keyboard_input()
+	_tick_status(delta)
 	_handle_dodge(delta)
 
 	var timestamp := Time.get_ticks_usec() / 1000000.0
@@ -296,10 +297,47 @@ func _handle_gravity(delta: float) -> void:
 		jump_buf_timer = 0.0
 
 func _handle_movement() -> void:
-	if input_move != 0.0:
-		velocity.x = input_move * MOVE_SPEED
+	# Boss status effects (BOSS_DESIGN.md): root/stun freeze, invert flips, slow scales
+	if _status_timer > 0.0 and (_status == "root" or _status == "stun"):
+		velocity.x = 0.0
+		return
+	var move := input_move
+	if _status_timer > 0.0 and _status == "invert":
+		move = -move
+	var speed := MOVE_SPEED
+	if _status_timer > 0.0 and _status == "slow":
+		speed *= 0.6
+	if move != 0.0:
+		velocity.x = move * speed
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, MOVE_SPEED * 0.25)
+
+# ── Boss status effects ──────────────────────────────────────────────────────
+# Applied by BossEnemy / BossArenaManager. One status at a time, last wins.
+var _status := ""
+var _status_timer := 0.0
+var _pull_target := Vector2.ZERO
+
+func apply_status(status: String, duration: float, origin: Vector2 = Vector2.ZERO) -> void:
+	if is_dodging and (status == "root" or status == "stun" or status == "pull_to"):
+		return  # dodge i-frames also evade control effects
+	_status = status
+	_status_timer = duration
+	_pull_target = origin
+	if body_sprite:
+		body_sprite.modulate = Color(0.7, 0.7, 1.2, 1.0)
+
+func _tick_status(delta: float) -> void:
+	if _status_timer <= 0.0:
+		return
+	_status_timer -= delta
+	if _status == "pull_to" and _pull_target != Vector2.ZERO:
+		var dir := (_pull_target - global_position).normalized()
+		velocity = dir * 260.0
+	if _status_timer <= 0.0:
+		_status = ""
+		if body_sprite:
+			body_sprite.modulate = Color.WHITE
 
 # Brief speed burst toward enemy — called by blade.perform_attack()
 func lunge(dir: float) -> void:

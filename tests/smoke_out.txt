@@ -1,0 +1,13 @@
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+=== _load_room node=0 archetype=Sanctuary w=29 h=20 prev=-1 | player_pos=(200.0, 700.0) ===
+  call stack: [{ "source": "res://scenes/game/Game.gd", "function": "_load_room", "line": 117 }, { "source": "res://scenes/game/Game.gd", "function": "_start_dungeon", "line": 109 }, { "source": "res://scenes/game/Game.gd", "function": "_ready", "line": 87 }]
+  [DIAG] Phase B: node=0 arch=Sanctuary w=29 h=20 portals=1
+    portal slot=right-ground connected=1
+    floor anchors: [(26, 16)]
+  [DIAG] Phase B result: floor_tiles=50
+  [DIAG] Phase C: floor_tiles=50
+  [DIAG] Phase D: floor_tiles=54
+  [DIAG] Phase E final: floor_tiles=54
+  spawn_pos=(424, 235) grid_rows=20 grid_cols=29
+[PLAYER] room bounds set: 29x20 tiles → 464x320 px

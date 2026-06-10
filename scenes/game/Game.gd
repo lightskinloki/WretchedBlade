@@ -183,7 +183,18 @@ func _spawn_enemies_for_node(node: DungeonGraph.RoomNode, grid: Array = []) -> v
 		_:
 			nullman = 1
 
-	# Boss room gets a champion
+	# Boss rooms spawn a generated BossEnemy instead of regular enemies:
+	# the dungeon end node when the dungeon is a boss dungeon, and any
+	# SECRET_BOSS dead-end node.
+	var is_boss_room: bool = (
+		(node.node_id == dungeon_graph.get_end_node() and dungeon_graph.meta.get("is_boss", false))
+		or node.secret_type == DungeonGraph.SecretType.SECRET_BOSS
+	)
+	if is_boss_room:
+		_spawn_boss(node, grid)
+		return
+
+	# Non-boss end node keeps the champion behavior
 	if node.node_id == dungeon_graph.get_end_node():
 		spec["has_champion"] = true
 		nullman = 0
@@ -194,6 +205,49 @@ func _spawn_enemies_for_node(node: DungeonGraph.RoomNode, grid: Array = []) -> v
 	spec["room_h"] = node.room_h
 	spec["grid"] = grid
 	world_gen.spawn_enemies_from_spec(world, spec)
+
+# ── Boss spawning (BOSS_DESIGN.md Build Order step 8) ───────────────────────
+func _spawn_boss(node: DungeonGraph.RoomNode, grid: Array) -> void:
+	var theme_str: String = dungeon_graph.meta.get("hex_theme", "geocrash")
+	var theme := _theme_string_to_enum(theme_str)
+	var difficulty: float = dungeon_graph.meta.get("difficulty", 0.4)
+
+	var bp := BossBlueprint.generate(current_seed + node.node_id, theme, difficulty)
+	print("[BOSS] spawning: ", bp.describe())
+
+	# Spawn at room center, on the highest floor near the middle column
+	var mid_x := node.room_w / 2
+	var spawn_y := float(node.room_h - 6) * float(TILE_SIZE)
+	if not grid.is_empty():
+		for fy in range(node.room_h - 2, 2, -1):
+			if grid[fy][mid_x] == 1 and grid[fy - 1][mid_x] == 0:
+				spawn_y = float(fy - 3) * float(TILE_SIZE)
+				break
+	var spawn_pos := Vector2(float(mid_x) * float(TILE_SIZE), spawn_y)
+
+	var boss := BossEnemy.spawn_for_dungeon(bp, spawn_pos)
+	world.add_child(boss)
+
+	# Health bar
+	var bar := BossHealthBar.new()
+	add_child(bar)
+	var title := "%s %s" % [BossHexThemes.get_theme_name(theme).to_upper(), BossBodyTypes.get_type_name(bp.body_type).to_upper()]
+	bar.bind_boss(boss, title)
+
+	# Arena manager: door lock over every portal opening + theme hazards
+	var door_rects: Array = []
+	for portal in node.portals:
+		var slot_def := _find_slot_def(node.archetype, portal.slot_id)
+		if slot_def == null:
+			continue
+		var pos: Vector2i = slot_def.get_tile_position(node.room_w, node.room_h)
+		door_rects.append(Rect2(
+			Vector2(float(pos.x) * TILE_SIZE, float(pos.y) * TILE_SIZE),
+			Vector2(float(slot_def.tile_w) * TILE_SIZE, float(slot_def.tile_h) * TILE_SIZE)
+		))
+	var arena := BossArenaManager.new()
+	world.add_child(arena)
+	arena.setup(boss, node.room_w, node.room_h, door_rects)
 
 # â”€â”€ Portal exit system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 func _place_portal_exit(_node_id: int, portal: RoomArchetype.PortalData, node: DungeonGraph.RoomNode) -> void:
