@@ -388,13 +388,13 @@ func _do_aoe_pulse(player: Node2D, def: Dictionary, dmg: int) -> void:
 	if params.get("cone", false):
 		var to_player := player.global_position - global_position
 		hits_player = hits_player and signf(to_player.x) == _facing
-	if hits_player:
-		var kb := Vector2.ZERO
-		if params.has("knockback"):
-			kb = (player.global_position - global_position).normalized() * float(params["knockback"])
-		_hit_player(player, dmg, kb)
-		if params.has("slow_mult") and player.has_method("apply_status"):
-			player.apply_status("slow", float(params["slow_duration"]))
+		if hits_player:
+			var kb := Vector2.ZERO
+			if params.has("knockback"):
+				kb = (player.global_position - global_position).normalized() * float(params["knockback"])
+			_hit_player(player, dmg, kb)
+			if params.has("slow_mult") and player.has_method("apply_status"):
+				player.apply_status("slow", float(params["slow_duration"]), Vector2.ZERO, float(params["slow_mult"]))
 	_spawn_burst_visual(global_position, minf(radius, 140.0))
 	if params.get("screen_shake", false):
 		_shake_camera()

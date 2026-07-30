@@ -65,6 +65,12 @@ var _diag_frames   := 0             # When > 0, dump state every frame unconditi
 var _room_w_px     := 704.0         # Set by Game.gd on room load (default 44*16)
 var _room_h_px     := 352.0         # Set by Game.gd on room load (default 22*16)
 
+# ── Status effect component ────────────────────────────────────────────────────
+var status_fx: StatusEffectComponent = StatusEffectComponent.new()
+var _status_icons: Control = null    # Container for status icon display
+var _icon_textures: Dictionary = {}  # Cache of generated icon textures
+var _pull_target := Vector2.ZERO     # For PULL_TO origin tracking
+
 # Previous-frame key state for edge detection
 var _last_attack_key  := false
 var _last_dodge_key   := false
@@ -101,6 +107,13 @@ func _ready() -> void:
 
 	_lock_on.target_locked.connect(_on_target_locked)
 	_lock_on.target_unlocked.connect(_on_target_unlocked)
+
+	# Status effect component
+	status_fx.status_added.connect(_on_status_added)
+	status_fx.status_removed.connect(_on_status_removed)
+	status_fx.status_tick.connect(_on_status_tick)
+	status_fx.visual_tint_changed.connect(_on_visual_tint_changed)
+	_build_status_icon_container()
 
 func set_room_bounds(w_tiles: int, h_tiles: int) -> void:
 	_room_w_px = float(w_tiles * 16)
@@ -168,7 +181,7 @@ func _physics_process(delta: float) -> void:
 			" vel=", velocity.round(), " room_h=", _room_h_px)
 
 	_read_keyboard_input()
-	_tick_status(delta)
+	status_fx.process(delta)
 	_handle_dodge(delta)
 
 	var timestamp := Time.get_ticks_usec() / 1000000.0
@@ -297,47 +310,33 @@ func _handle_gravity(delta: float) -> void:
 		jump_buf_timer = 0.0
 
 func _handle_movement() -> void:
-	# Boss status effects (BOSS_DESIGN.md): root/stun freeze, invert flips, slow scales
-	if _status_timer > 0.0 and (_status == "root" or _status == "stun"):
+	# Pull status — override all movement
+	if status_fx.has(StatusEffectComponent.ID.PULL_TO):
+		var pull_to_status = status_fx._active.get(StatusEffectComponent.ID.PULL_TO)
+		if pull_to_status:
+			_pull_target = pull_to_status["params"].get("origin", Vector2.ZERO)
+		if _pull_target != Vector2.ZERO:
+			var dir := (_pull_target - global_position).normalized()
+			velocity = dir * 260.0
+			return
+
+	# Root/STUN — freeze horizontal movement
+	if status_fx.has(StatusEffectComponent.ID.ROOT) or status_fx.has(StatusEffectComponent.ID.STUN):
 		velocity.x = 0.0
 		return
+
 	var move := input_move
-	if _status_timer > 0.0 and _status == "invert":
+	# Invert — flip horizontal input
+	if status_fx.has(StatusEffectComponent.ID.INVERT):
 		move = -move
-	var speed := MOVE_SPEED
-	if _status_timer > 0.0 and _status == "slow":
-		speed *= 0.6
+
+	# Speed — apply combined slow multiplier
+	var speed := MOVE_SPEED * status_fx.get_slow_multiplier()
+
 	if move != 0.0:
 		velocity.x = move * speed
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, MOVE_SPEED * 0.25)
-
-# ── Boss status effects ──────────────────────────────────────────────────────
-# Applied by BossEnemy / BossArenaManager. One status at a time, last wins.
-var _status := ""
-var _status_timer := 0.0
-var _pull_target := Vector2.ZERO
-
-func apply_status(status: String, duration: float, origin: Vector2 = Vector2.ZERO) -> void:
-	if is_dodging and (status == "root" or status == "stun" or status == "pull_to"):
-		return  # dodge i-frames also evade control effects
-	_status = status
-	_status_timer = duration
-	_pull_target = origin
-	if body_sprite:
-		body_sprite.modulate = Color(0.7, 0.7, 1.2, 1.0)
-
-func _tick_status(delta: float) -> void:
-	if _status_timer <= 0.0:
-		return
-	_status_timer -= delta
-	if _status == "pull_to" and _pull_target != Vector2.ZERO:
-		var dir := (_pull_target - global_position).normalized()
-		velocity = dir * 260.0
-	if _status_timer <= 0.0:
-		_status = ""
-		if body_sprite:
-			body_sprite.modulate = Color.WHITE
 
 # Brief speed burst toward enemy — called by blade.perform_attack()
 func lunge(dir: float) -> void:
@@ -382,6 +381,7 @@ func _handle_dodge(delta: float) -> void:
 		dodge_timer = DODGE_TIME
 		dodge_cooldown = DODGE_COOLDOWN
 		input_dodge = false
+		status_fx.set_dodge_immune(true)
 
 		# Attack cancel: abort blade recovery/windup
 		if blade.has_method("try_dodge_cancel"):
@@ -396,6 +396,7 @@ func _handle_dodge(delta: float) -> void:
 		if dodge_timer <= 0.0:
 			is_dodging = false
 			is_invincible = false
+			status_fx.set_dodge_immune(false)
 			collision_mask = LAYER_GEOMETRY | LAYER_ENEMY
 
 func _handle_attack(_delta: float) -> void:
@@ -556,3 +557,82 @@ func set_counter_input(pressed: bool)     -> void:
 	input_counter = pressed
 	if pressed:
 		_blade_record_action("counter")
+
+
+# ── Status effect integration ─────────────────────────────────────────────────
+
+func apply_status(status: String, duration: float, origin: Vector2 = Vector2.ZERO, mult: float = 0.6) -> void:
+	# String → ID mapping for backward compatibility
+	var status_id := -1
+	match status:
+		"root":     status_id = StatusEffectComponent.ID.ROOT
+		"stun":     status_id = StatusEffectComponent.ID.STUN
+		"invert":   status_id = StatusEffectComponent.ID.INVERT
+		"slow":     status_id = StatusEffectComponent.ID.SLOW
+		"pull_to":  status_id = StatusEffectComponent.ID.PULL_TO
+		"darkness": status_id = StatusEffectComponent.ID.DARKNESS
+		"dot":      status_id = StatusEffectComponent.ID.DOT
+	if status_id >= 0:
+		var params := {}
+		if status_id == StatusEffectComponent.ID.PULL_TO:
+			params["origin"] = origin
+		elif status_id == StatusEffectComponent.ID.SLOW:
+			params["mult"] = mult
+		status_fx.apply(status_id, duration, params, self)
+
+
+func _on_status_added(_status_id: int, _duration: float, _params: Dictionary) -> void:
+	_update_status_icons()
+
+
+func _on_status_removed(_status_id: int) -> void:
+	_update_status_icons()
+	# Clear tint if no statuses remain
+	if status_fx.get_all_active().is_empty():
+		body_sprite.modulate = Color.WHITE
+
+
+func _on_status_tick(status_id: int, params: Dictionary) -> void:
+	if status_id == StatusEffectComponent.ID.DOT:
+		var dmg: int = params.get("dmg_per_tick", 1)
+		if blade.has_method("take_damage"):
+			blade.take_damage(dmg)
+
+
+func _on_visual_tint_changed(tint_color: Color, intensity: float) -> void:
+	if status_fx.get_all_active().is_empty():
+		body_sprite.modulate = Color.WHITE
+	else:
+		# Blend tint with white based on intensity
+		body_sprite.modulate = Color.WHITE.lerp(tint_color, intensity)
+
+
+func _build_status_icon_container() -> void:
+	_status_icons = Control.new()
+	_status_icons.name = "StatusIcons"
+	_status_icons.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Position above the body sprite
+	_status_icons.position = Vector2(-20, -30)
+	_status_icons.size = Vector2(40, 12)
+	add_child(_status_icons)
+
+
+func _update_status_icons() -> void:
+	# Clear old icons
+	for child in _status_icons.get_children():
+		child.queue_free()
+
+	var active_ids := status_fx.get_all_active()
+	var offset := 0.0
+	for status_id in active_ids:
+		var icon := TextureRect.new()
+		icon.name = "Icon_%d" % status_id
+		if not _icon_textures.has(status_id):
+			_icon_textures[status_id] = PixelRenderer.generate_status_icon(status_id)
+		icon.texture = _icon_textures[status_id]
+		icon.position = Vector2(offset, 0)
+		icon.size = Vector2(8, 8)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_status_icons.add_child(icon)
+		offset += 10.0

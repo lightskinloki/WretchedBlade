@@ -917,3 +917,145 @@ func generate_lockon_reticle() -> ImageTexture:
 					a = 11.0 - manhattan
 				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a * 0.7))
 	return ImageTexture.create_from_image(img)
+
+
+# ── Status effect icons ──────────────────────────────────────────────────────
+
+static func generate_status_icon(status_id: int) -> ImageTexture:
+	# 8×8 pixel icons — one per status type
+	var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)
+	img.fill(Color.TRANSPARENT)
+
+	match status_id:
+		StatusEffectComponent.ID.ROOT:
+			# Chains / anchor — horizontal bars
+			img.set_pixel(1, 3, Color(0.5, 0.6, 1.0))
+			img.set_pixel(2, 3, Color(0.5, 0.6, 1.0))
+			img.set_pixel(3, 3, Color(0.5, 0.6, 1.0))
+			img.set_pixel(4, 3, Color(0.5, 0.6, 1.0))
+			img.set_pixel(5, 3, Color(0.5, 0.6, 1.0))
+			img.set_pixel(6, 3, Color(0.5, 0.6, 1.0))
+			img.set_pixel(2, 2, Color(0.5, 0.6, 1.0))
+			img.set_pixel(5, 2, Color(0.5, 0.6, 1.0))
+			img.set_pixel(2, 1, Color(0.5, 0.6, 1.0))
+			img.set_pixel(5, 1, Color(0.5, 0.6, 1.0))
+
+		StatusEffectComponent.ID.STUN:
+			# Lightning bolt
+			img.set_pixel(4, 1, Color(1.0, 0.9, 0.3))
+			img.set_pixel(3, 2, Color(1.0, 0.9, 0.3))
+			img.set_pixel(4, 2, Color(1.0, 0.9, 0.3))
+			img.set_pixel(3, 3, Color(1.0, 0.9, 0.3))
+			img.set_pixel(3, 4, Color(1.0, 0.9, 0.3))
+			img.set_pixel(2, 5, Color(1.0, 0.9, 0.3))
+			img.set_pixel(3, 5, Color(1.0, 0.9, 0.3))
+			img.set_pixel(2, 6, Color(1.0, 0.9, 0.3))
+
+		StatusEffectComponent.ID.INVERT:
+			# Arrows pointing opposite directions
+			img.set_pixel(1, 3, Color(0.7, 0.3, 0.9))
+			img.set_pixel(2, 3, Color(0.7, 0.3, 0.9))
+			img.set_pixel(3, 3, Color(0.7, 0.3, 0.9))
+			img.set_pixel(2, 2, Color(0.7, 0.3, 0.9))
+			img.set_pixel(2, 4, Color(0.7, 0.3, 0.9))
+			img.set_pixel(5, 3, Color(0.7, 0.3, 0.9))
+			img.set_pixel(6, 3, Color(0.7, 0.3, 0.9))
+			img.set_pixel(7, 3, Color(0.7, 0.3, 0.9))
+			img.set_pixel(6, 2, Color(0.7, 0.3, 0.9))
+			img.set_pixel(6, 4, Color(0.7, 0.3, 0.9))
+
+		StatusEffectComponent.ID.SLOW:
+			# Snail / wavy lines
+			img.set_pixel(2, 2, Color(0.4, 0.8, 0.4))
+			img.set_pixel(3, 3, Color(0.4, 0.8, 0.4))
+			img.set_pixel(2, 4, Color(0.4, 0.8, 0.4))
+			img.set_pixel(3, 5, Color(0.4, 0.8, 0.4))
+			img.set_pixel(2, 6, Color(0.4, 0.8, 0.4))
+			img.set_pixel(5, 2, Color(0.4, 0.8, 0.4))
+			img.set_pixel(6, 3, Color(0.4, 0.8, 0.4))
+			img.set_pixel(5, 4, Color(0.4, 0.8, 0.4))
+			img.set_pixel(6, 5, Color(0.4, 0.8, 0.4))
+			img.set_pixel(5, 6, Color(0.4, 0.8, 0.4))
+
+		StatusEffectComponent.ID.PULL_TO:
+			# Arrows converging on center
+			img.set_pixel(1, 3, Color(0.8, 0.5, 0.8))
+			img.set_pixel(2, 3, Color(0.8, 0.5, 0.8))
+			img.set_pixel(3, 3, Color(0.8, 0.5, 0.8))
+			img.set_pixel(3, 2, Color(0.8, 0.5, 0.8))
+			img.set_pixel(3, 4, Color(0.8, 0.5, 0.8))
+			img.set_pixel(5, 3, Color(0.8, 0.5, 0.8))
+			img.set_pixel(6, 3, Color(0.8, 0.5, 0.8))
+			img.set_pixel(7, 3, Color(0.8, 0.5, 0.8))
+			img.set_pixel(5, 2, Color(0.8, 0.5, 0.8))
+			img.set_pixel(5, 4, Color(0.8, 0.5, 0.8))
+
+		StatusEffectComponent.ID.DARKNESS:
+			# Eye half-closed
+			img.set_pixel(1, 3, Color(0.2, 0.2, 0.2))
+			img.set_pixel(2, 2, Color(0.2, 0.2, 0.2))
+			img.set_pixel(3, 2, Color(0.2, 0.2, 0.2))
+			img.set_pixel(4, 2, Color(0.2, 0.2, 0.2))
+			img.set_pixel(5, 2, Color(0.2, 0.2, 0.2))
+			img.set_pixel(6, 3, Color(0.2, 0.2, 0.2))
+			img.set_pixel(3, 3, Color(0.3, 0.3, 0.4))
+			img.set_pixel(4, 3, Color(0.3, 0.3, 0.4))
+			img.set_pixel(3, 4, Color(0.2, 0.2, 0.2))
+			img.set_pixel(4, 4, Color(0.2, 0.2, 0.2))
+
+		StatusEffectComponent.ID.DOT:
+			# Skull / flame
+			img.set_pixel(3, 1, Color(0.9, 0.2, 0.1))
+			img.set_pixel(4, 1, Color(0.9, 0.2, 0.1))
+			img.set_pixel(2, 2, Color(0.9, 0.2, 0.1))
+			img.set_pixel(3, 2, Color(0.9, 0.4, 0.1))
+			img.set_pixel(4, 2, Color(0.9, 0.4, 0.1))
+			img.set_pixel(5, 2, Color(0.9, 0.2, 0.1))
+			img.set_pixel(2, 3, Color(0.9, 0.2, 0.1))
+			img.set_pixel(3, 3, Color(0.9, 0.3, 0.1))
+			img.set_pixel(4, 3, Color(0.9, 0.3, 0.1))
+			img.set_pixel(5, 3, Color(0.9, 0.2, 0.1))
+			img.set_pixel(3, 4, Color(0.9, 0.2, 0.1))
+			img.set_pixel(4, 4, Color(0.9, 0.2, 0.1))
+
+	return ImageTexture.create_from_image(img)
+
+
+static func get_status_tint(status_id: int) -> Color:
+	match status_id:
+		StatusEffectComponent.ID.ROOT:
+			return Color(0.5, 0.6, 1.0, 0.5)
+		StatusEffectComponent.ID.STUN:
+			return Color(1.0, 0.9, 0.3, 0.5)
+		StatusEffectComponent.ID.INVERT:
+			return Color(0.7, 0.3, 0.9, 0.5)
+		StatusEffectComponent.ID.SLOW:
+			return Color(0.4, 0.8, 0.4, 0.3)
+		StatusEffectComponent.ID.PULL_TO:
+			return Color(0.8, 0.5, 0.8, 0.3)
+		StatusEffectComponent.ID.DARKNESS:
+			return Color(0.2, 0.2, 0.2, 0.6)
+		StatusEffectComponent.ID.DOT:
+			return Color(0.9, 0.2, 0.1, 0.4)
+		_:
+			return Color.TRANSPARENT
+
+
+static func get_status_name(status_id: int) -> String:
+	match status_id:
+		StatusEffectComponent.ID.ROOT:
+			return "ROOTED"
+		StatusEffectComponent.ID.STUN:
+			return "STUNNED"
+		StatusEffectComponent.ID.INVERT:
+			return "INVERTED"
+		StatusEffectComponent.ID.SLOW:
+			return "SLOWED"
+		StatusEffectComponent.ID.PULL_TO:
+			return "PULLED"
+		StatusEffectComponent.ID.DARKNESS:
+			return "DARKNESS"
+		StatusEffectComponent.ID.DOT:
+			return "BURNING"
+		_:
+			return ""

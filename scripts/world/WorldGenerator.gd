@@ -99,13 +99,14 @@ func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false) ->
 				if id == PLATFORM:
 					body = DestructibleTile.new()
 					body.linked_sprite = sprite
-				elif id == WALL or id == HEX_WALL:
+				elif id == FLOOR or id == HEX_WALL:
 					var htile := _HexBreakableTile.new()
 					htile.linked_sprite = sprite
 					htile.position      = sprite.position
 					parent.add_child(htile)
+					var type := PixelRenderer.TileType.FLOOR if id == FLOOR else PixelRenderer.TileType.WALL
 					var src_img := PixelRenderer.generate_tile_image(
-						PixelRenderer.TileType.WALL,
+						type,
 						hash(Vector2i(x, y))
 					)
 					htile.setup(src_img)
