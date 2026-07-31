@@ -750,6 +750,12 @@ func generate_glow_texture(px_radius: int) -> ImageTexture:
 				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 	return ImageTexture.create_from_image(img)
 
+# Generate a procedural pixel shard texture for debris, weapon shatter, and hit impacts
+func generate_pixel_shard_texture(width: int, height: int, color: Color = Color.WHITE) -> ImageTexture:
+	var img := Image.create(maxi(1, width), maxi(1, height), false, Image.FORMAT_RGBA8)
+	img.fill(color)
+	return ImageTexture.create_from_image(img)
+
 # ── Boss sprite generation (BOSS_DESIGN.md Axis 7) ──────────────────────────
 # Renders a boss sprite from blueprint + phase. Each phase re-render adds
 # cracks, missing chunks, and brighter core glow.

@@ -417,8 +417,11 @@ func _handle_counter(_delta: float) -> void:
 		await get_tree().create_timer(0.2).timeout
 		_is_countering = false
 
+var _last_whetstone_key := false
+var _last_god_key := false
+
 func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
-	if is_invincible:
+	if is_invincible or GameManager.is_god_mode:
 		return
 
 	var stack := get_stack()
@@ -442,6 +445,13 @@ func heal() -> void:
 		blade.restore_full()
 	_set_pose(PixelRenderer.BodyPose.IDLE)
 
+func use_whetstone() -> void:
+	if is_invincible or not GameManager.is_playing():
+		return
+	if GameManager.use_whetstone():
+		if blade.has_method("repair"):
+			blade.repair(40)
+
 func _start_iframes(duration: float) -> void:
 	is_invincible = true
 	await get_tree().create_timer(duration).timeout
@@ -453,6 +463,7 @@ func _on_player_died(_pos: Vector2) -> void:
 func _on_reconstituted() -> void:
 	global_position = GameManager.get_respawn_position()
 	velocity        = Vector2.ZERO
+	heal()
 	set_physics_process(true)
 
 func _read_keyboard_input() -> void:
@@ -508,6 +519,16 @@ func _read_keyboard_input() -> void:
 	if lock_down and not _last_lock_key:
 		input_lock_on = true
 	_last_lock_key = lock_down
+
+	var whetstone_down := Input.is_key_pressed(KEY_H)
+	if whetstone_down and not _last_whetstone_key:
+		use_whetstone()
+	_last_whetstone_key = whetstone_down
+
+	var god_down := Input.is_key_pressed(KEY_F1) or Input.is_key_pressed(KEY_G)
+	if god_down and not _last_god_key:
+		GameManager.toggle_god_mode()
+	_last_god_key = god_down
 
 func _on_target_locked(_target: Node2D) -> void:
 	_reticle = Sprite2D.new()

@@ -99,18 +99,25 @@ static func get_archetype_name(archetype: int) -> String:
 		Archetype.BOSS_ARENA:      return "Boss Arena"
 		_:                         return "Unknown"
 
-static func get_dimension_range(archetype: int) -> Dictionary:
+static func get_dimension_range(archetype: int, complexity: float = -1.0) -> Dictionary:
+	var base_range: Dictionary
 	match archetype:
-		Archetype.GUARD_POST:     return {"min_w": 40, "max_w": 64, "min_h": 20, "max_h": 30}
-		Archetype.BRIDGE_SPAN:    return {"min_w": 55, "max_w": 80, "min_h": 16, "max_h": 24}
-		Archetype.STORAGE_VAULT:  return {"min_w": 44, "max_w": 64, "min_h": 22, "max_h": 32}
-		Archetype.RITUAL_CHAMBER: return {"min_w": 36, "max_w": 52, "min_h": 22, "max_h": 30}
-		Archetype.COLLAPSED_HALL: return {"min_w": 42, "max_w": 58, "min_h": 20, "max_h": 26}
-		Archetype.WATCHTOWER:     return {"min_w": 24, "max_w": 36, "min_h": 32, "max_h": 50}
-		Archetype.QUARRY:         return {"min_w": 48, "max_w": 64, "min_h": 18, "max_h": 26}
-		Archetype.SANCTUARY:      return {"min_w": 24, "max_w": 34, "min_h": 18, "max_h": 24}
-		Archetype.BOSS_ARENA:     return {"min_w": 50, "max_w": 80, "min_h": 28, "max_h": 44}
-		_:                        return {"min_w": 40, "max_w": 64, "min_h": 20, "max_h": 30}
+		Archetype.GUARD_POST:     base_range = {"min_w": 40, "max_w": 64, "min_h": 20, "max_h": 30}
+		Archetype.BRIDGE_SPAN:    base_range = {"min_w": 55, "max_w": 80, "min_h": 16, "max_h": 24}
+		Archetype.STORAGE_VAULT:  base_range = {"min_w": 44, "max_w": 64, "min_h": 22, "max_h": 32}
+		Archetype.RITUAL_CHAMBER: base_range = {"min_w": 36, "max_w": 52, "min_h": 22, "max_h": 30}
+		Archetype.COLLAPSED_HALL: base_range = {"min_w": 42, "max_w": 58, "min_h": 20, "max_h": 26}
+		Archetype.WATCHTOWER:     base_range = {"min_w": 24, "max_w": 36, "min_h": 32, "max_h": 50}
+		Archetype.QUARRY:         base_range = {"min_w": 48, "max_w": 64, "min_h": 18, "max_h": 26}
+		Archetype.SANCTUARY:      base_range = {"min_w": 24, "max_w": 34, "min_h": 18, "max_h": 24}
+		Archetype.BOSS_ARENA:     base_range = {"min_w": 50, "max_w": 80, "min_h": 28, "max_h": 44}
+		_:                        base_range = {"min_w": 40, "max_w": 64, "min_h": 20, "max_h": 30}
+
+	if complexity >= 0.0:
+		var cx := clampf(complexity, 0.0, 1.0)
+		base_range["target_w"] = int(lerpf(float(base_range.min_w), float(base_range.max_w), cx))
+		base_range["target_h"] = int(lerpf(float(base_range.min_h), float(base_range.max_h), cx))
+	return base_range
 
 static func get_available_portal_slots(archetype: int) -> Array[PortalSlot]:
 	match archetype:
@@ -195,19 +202,19 @@ static func get_available_portal_slots(archetype: int) -> Array[PortalSlot]:
 # ── Skeleton application — called by RoomTerrainGenerator during Pass 2 ──────
 # Phase B: builds walkable path between all portals, then adds archetype character.
 # Portals array elements are PortalData objects; available_slots are PortalSlot defs.
-static func apply_skeleton(grid: Array, archetype: int, rng: RandomNumberGenerator, w: int, h: int, portals: Array = [], available_slots: Array[PortalSlot] = []) -> void:
+static func apply_skeleton(grid: Array, archetype: int, rng: RandomNumberGenerator, w: int, h: int, portals: Array = [], available_slots: Array[PortalSlot] = [], complexity: float = 0.5) -> void:
 	_connect_portal_floors(grid, _get_portal_anchors(portals, available_slots, w, h), w, h)
 	match archetype:
-		Archetype.GUARD_POST:     _skeleton_guard_post(grid, rng, w, h, portals, available_slots)
-		Archetype.BRIDGE_SPAN:    _skeleton_bridge_span(grid, rng, w, h, portals, available_slots)
-		Archetype.SANCTUARY:      _skeleton_sanctuary(grid, rng, w, h, portals, available_slots)
-		Archetype.STORAGE_VAULT:  _skeleton_storage_vault(grid, rng, w, h, portals, available_slots)
-		Archetype.COLLAPSED_HALL: _skeleton_collapsed_hall(grid, rng, w, h, portals, available_slots)
-		Archetype.RITUAL_CHAMBER: _skeleton_ritual_chamber(grid, rng, w, h, portals, available_slots)
-		Archetype.WATCHTOWER:     _skeleton_watchtower(grid, rng, w, h, portals, available_slots)
-		Archetype.QUARRY:         _skeleton_quarry(grid, rng, w, h, portals, available_slots)
-		Archetype.BOSS_ARENA:     _skeleton_boss_arena(grid, rng, w, h, portals, available_slots)
-		_:                        _skeleton_guard_post(grid, rng, w, h, portals, available_slots)
+		Archetype.GUARD_POST:     _skeleton_guard_post(grid, rng, w, h, portals, available_slots, complexity)
+		Archetype.BRIDGE_SPAN:    _skeleton_bridge_span(grid, rng, w, h, portals, available_slots, complexity)
+		Archetype.SANCTUARY:      _skeleton_sanctuary(grid, rng, w, h, portals, available_slots, complexity)
+		Archetype.STORAGE_VAULT:  _skeleton_storage_vault(grid, rng, w, h, portals, available_slots, complexity)
+		Archetype.COLLAPSED_HALL: _skeleton_collapsed_hall(grid, rng, w, h, portals, available_slots, complexity)
+		Archetype.RITUAL_CHAMBER: _skeleton_ritual_chamber(grid, rng, w, h, portals, available_slots, complexity)
+		Archetype.WATCHTOWER:     _skeleton_watchtower(grid, rng, w, h, portals, available_slots, complexity)
+		Archetype.QUARRY:         _skeleton_quarry(grid, rng, w, h, portals, available_slots, complexity)
+		Archetype.BOSS_ARENA:     _skeleton_boss_arena(grid, rng, w, h, portals, available_slots, complexity)
+		_:                        _skeleton_guard_post(grid, rng, w, h, portals, available_slots, complexity)
 
 # ── Portal anchor extraction ───────────────────────────────────────────────────
 static func _get_portal_anchors(portals: Array, available_slots: Array[PortalSlot], w: int, h: int) -> Array[Vector2i]:
@@ -360,12 +367,12 @@ static func _get_anchor_y_range(portals: Array, available_slots: Array[PortalSlo
 
 # ── Guard Post ────────────────────────────────────────────────────────────────
 # Character: raised sentry platform above the path, rubble pile at base.
-static func _skeleton_guard_post(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_guard_post(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 
 	# Raised sentry platform at random x in right third of room
-	var sentry_w := clampi(w / 12, 3, 6)
+	var sentry_w := clampi(int(float(w) / 12.0 * (1.0 + complexity)), 3, 8)
 	var sentry_x := rng.randi_range(w / 3, w - sentry_w - 3)
 	var sentry_y := floor_lo - rng.randi_range(3, maxi(5, h / 6))
 	for dx in range(sentry_w):
@@ -377,7 +384,7 @@ static func _skeleton_guard_post(grid: Array, rng: RandomNumberGenerator, w: int
 		_place_off_path(grid, sentry_x + dx, sentry_y, TILE_PLATFORM, w, h)
 
 	# Rubble pile at random x near left or right wall — scale with room
-	var rubble_w := clampi(w / 14, 2, 5)
+	var rubble_w := clampi(int(float(w) / 14.0 * (1.0 + complexity)), 2, 7)
 	var rubble_side := rng.randi() % 2
 	var rubble_x := rng.randi_range(2, 5) if rubble_side == 0 else rng.randi_range(w - rubble_w - 3, w - 3)
 	var rubble_y_base := h - 2
@@ -390,12 +397,12 @@ static func _skeleton_guard_post(grid: Array, rng: RandomNumberGenerator, w: int
 
 # ── Bridge Span ───────────────────────────────────────────────────────────────
 # Character: support pillars below the path, railing segments above, cable anchors.
-static func _skeleton_bridge_span(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_bridge_span(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var anchors := _get_portal_anchors(portals, available_slots, w, h)
 	if anchors.is_empty():
 		return
 	# Pillars below the path at random x positions — scale with room width
-	var num_pillars := clampi(w / 8, 1, 5)
+	var num_pillars := clampi(int(float(w) / 8.0 * (0.5 + complexity)), 1, 7)
 	var pillar_positions: Array[int] = []
 	for _i in range(num_pillars):
 		var px := rng.randi_range(w / 6, w * 5 / 6)
@@ -405,7 +412,7 @@ static func _skeleton_bridge_span(grid: Array, rng: RandomNumberGenerator, w: in
 
 	# Railing segments above the path at random x spans
 	var rail_y := (anchors[0].y if anchors.size() > 0 else h - 4) - rng.randi_range(1, 2)
-	var num_rails := clampi(w / 15, 1, 4)
+	var num_rails := clampi(int(float(w) / 15.0 * (0.5 + complexity)), 1, 6)
 	for _i in range(num_rails):
 		var rx := rng.randi_range(w / 6, w * 5 / 6 - 4)
 		var rw := rng.randi_range(3, maxi(5, w / 12))
@@ -421,7 +428,7 @@ static func _skeleton_bridge_span(grid: Array, rng: RandomNumberGenerator, w: in
 
 # ── Sanctuary ─────────────────────────────────────────────────────────────────
 # Character: minimal — single raised meditation spot offset from the path.
-static func _skeleton_sanctuary(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_sanctuary(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 	var cx := w / 2
@@ -436,12 +443,12 @@ static func _skeleton_sanctuary(grid: Array, rng: RandomNumberGenerator, w: int,
 # ── Storage Vault ─────────────────────────────────────────────────────────────
 # Character: ceiling pillars descending toward path, wall alcoves with shelves,
 # one hidden pocket.
-static func _skeleton_storage_vault(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_storage_vault(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 
 	# Ceiling pillars: columns from y=2 down to above the path — scale with room
-	var num_pillars := clampi(w / 7, 2, 6)
+	var num_pillars := clampi(int(float(w) / 7.0 * (0.5 + complexity)), 2, 8)
 	var pillar_positions: Array[int] = []
 	for _i in range(num_pillars):
 		var px := rng.randi_range(w / 6, w * 5 / 6)
@@ -451,7 +458,7 @@ static func _skeleton_storage_vault(grid: Array, rng: RandomNumberGenerator, w: 
 		pillar_positions.append(px)
 
 	# Wall alcoves with shelves between pillars (at y above path) — scale with room
-	var num_alcoves := clampi(w / 15, 1, 4)
+	var num_alcoves := clampi(int(float(w) / 15.0 * (0.5 + complexity)), 1, 6)
 	for _i in range(num_alcoves):
 		var ax := rng.randi_range(w / 4, w * 3 / 4)
 		var aw := rng.randi_range(3, 4)
@@ -470,12 +477,12 @@ static func _skeleton_storage_vault(grid: Array, rng: RandomNumberGenerator, w: 
 
 # ── Collapsed Hall ────────────────────────────────────────────────────────────
 # Character: rubble heap below the path, fallen ceiling debris, a fallen pillar.
-static func _skeleton_collapsed_hall(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_collapsed_hall(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_hi := y_range.y
 
 	# Rubble heap below the path at a random X — scale with room
-	var rubble_w := clampi(w / 10, 3, 6)
+	var rubble_w := clampi(int(float(w) / 10.0 * (0.5 + complexity)), 3, 8)
 	var rubble_x := rng.randi_range(w / 6, w * 5 / 6 - rubble_w)
 	var rubble_base := floor_hi + 2
 	for dx in range(rubble_w):
@@ -489,7 +496,7 @@ static func _skeleton_collapsed_hall(grid: Array, rng: RandomNumberGenerator, w:
 				_place_off_path(grid, rx, ry, TILE_PLATFORM, w, h)
 
 	# Fallen ceiling debris above the path — scale with room
-	var debris_count := clampi(w / 10, 2, 6)
+	var debris_count := clampi(int(float(w) / 10.0 * (0.5 + complexity)), 2, 8)
 	for _i in range(debris_count):
 		var dx := rng.randi_range(w / 6, w * 5 / 6)
 		var dy := rng.randi_range(2, 5)
@@ -506,14 +513,14 @@ static func _skeleton_collapsed_hall(grid: Array, rng: RandomNumberGenerator, w:
 
 # ── Ritual Chamber ────────────────────────────────────────────────────────────
 # Character: central raised platform (off the path), steps, corner platforms.
-static func _skeleton_ritual_chamber(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_ritual_chamber(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 	var cx := w / 2
 
 	# Central raised platform above the path, at random size — scale with room
-	var plat_w := clampi(w / 8, 3, 8)
-	var plat_h := clampi(h / 6, 3, 6)
+	var plat_w := clampi(int(float(w) / 8.0 * (0.5 + complexity)), 3, 10)
+	var plat_h := clampi(int(float(h) / 6.0 * (0.5 + complexity)), 3, 8)
 	var plat_x1 := cx - plat_w / 2 + rng.randi_range(-2, 2)
 	var plat_y := floor_lo - plat_h - rng.randi_range(1, 2)
 
@@ -555,7 +562,7 @@ static func _skeleton_ritual_chamber(grid: Array, rng: RandomNumberGenerator, w:
 
 # ── Watchtower ────────────────────────────────────────────────────────────────
 # Character: staggered side platforms going up, window gaps in side walls.
-static func _skeleton_watchtower(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_watchtower(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 
@@ -577,7 +584,7 @@ static func _skeleton_watchtower(grid: Array, rng: RandomNumberGenerator, w: int
 				_place_off_path(grid, x, plat_level - 1, TILE_EMPTY, w, h)
 
 		plat_side = 1 - plat_side
-		plat_level -= rng.randi_range(2, 4)
+		plat_level -= rng.randi_range(maxi(2, 4 - int(complexity * 3.0)), 4)
 
 	# Top platform near ceiling
 	var top_y := rng.randi_range(2, 5)
@@ -588,7 +595,7 @@ static func _skeleton_watchtower(grid: Array, rng: RandomNumberGenerator, w: int
 			_place_off_path(grid, x, ay, TILE_EMPTY, w, h)
 
 	# Window gaps in side walls at random heights — scale with room
-	var num_windows := clampi(h / 6, 2, 6)
+	var num_windows := clampi(int(float(h) / 6.0 * (0.5 + complexity)), 2, 8)
 	for _i in range(num_windows):
 		var wy := rng.randi_range(3, floor_lo - 6)
 		var w_side := rng.randi() % 2
@@ -599,12 +606,12 @@ static func _skeleton_watchtower(grid: Array, rng: RandomNumberGenerator, w: int
 
 # ── Quarry ────────────────────────────────────────────────────────────────────
 # Character: waist-high cover walls in the air above path, visual edge pits.
-static func _skeleton_quarry(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_quarry(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 
 	# Waist-high cover walls at random x positions — scale with room
-	var num_covers := clampi(w / 12, 2, 6)
+	var num_covers := clampi(int(float(w) / 12.0 * (0.5 + complexity)), 2, 8)
 	for _i in range(num_covers):
 		var cx := rng.randi_range(w / 8, w * 7 / 8 - 4)
 		var cw := rng.randi_range(3, maxi(4, w / 15))
@@ -633,7 +640,7 @@ static func _skeleton_quarry(grid: Array, rng: RandomNumberGenerator, w: int, h:
 # ── Boss Arena ─────────────────────────────────────────────────────────────────
 # Character: wide open floor with perimeter ledges, pillar clusters, and
 # elevated boss spawn platform — scaled to room dimensions.
-static func _skeleton_boss_arena(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot]) -> void:
+static func _skeleton_boss_arena(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 	var cx := w / 2
@@ -648,7 +655,7 @@ static func _skeleton_boss_arena(grid: Array, rng: RandomNumberGenerator, w: int
 					grid[y][x] = TILE_EMPTY
 
 	# Perimeter ledges on left and right walls — scaled by room height
-	var ledge_count := clampi(h / 8, 1, 4)
+	var ledge_count := clampi(int(float(h) / 8.0 * (0.5 + complexity)), 1, 6)
 	for i in range(ledge_count):
 		var ly := 2 + i * ((floor_lo - 2) / (ledge_count + 1))
 		var lw := clampi(w / 12, 2, 4)
@@ -660,7 +667,7 @@ static func _skeleton_boss_arena(grid: Array, rng: RandomNumberGenerator, w: int
 			_place_off_path(grid, w - lw + dx - 1, ly, TILE_PLATFORM, w, h)
 
 	# Pillar clusters — 2-4 groups of pillars
-	var num_clusters := clampi(w / 15, 2, 4)
+	var num_clusters := clampi(int(float(w) / 15.0 * (0.5 + complexity)), 2, 6)
 	for _i in range(num_clusters):
 		var pcx := rng.randi_range(clear_left + 2, clear_right - 4)
 		var pcy := rng.randi_range(3, floor_lo - 3)

@@ -1,10 +1,13 @@
 extends StaticBody2D
 class_name DestructibleTile
 
+signal destroyed
+
 var linked_sprite: Sprite2D
 
 func take_damage(_amount: int, _knockback: Vector2 = Vector2.ZERO) -> void:
 	_spawn_debris()
+	destroyed.emit()
 	if linked_sprite and is_instance_valid(linked_sprite):
 		linked_sprite.queue_free()
 	queue_free()
@@ -14,10 +17,12 @@ func _spawn_debris() -> void:
 	if not world:
 		return
 	for i in range(6):
-		var shard := ColorRect.new()
-		shard.size = Vector2(randf_range(2, 5), randf_range(2, 5))
+		var sw := randi_range(2, 5)
+		var sh := randi_range(2, 5)
+		var scol := Color(0.35, 0.25, 0.40, 1.0) if randf() > 0.4 else Color(0.50, 0.40, 0.55, 1.0)
+		var shard := Sprite2D.new()
+		shard.texture = PixelRenderer.generate_pixel_shard_texture(sw, sh, scol)
 		shard.rotation = randf() * TAU
-		shard.color = Color(0.35, 0.25, 0.40, 1.0) if randf() > 0.4 else Color(0.50, 0.40, 0.55, 1.0)
 		shard.global_position = global_position
 		world.add_child(shard)
 

@@ -493,9 +493,8 @@ func _spawn_hex_burst() -> void:
 
 	# Radial burst ring
 	for i in range(12):
-		var shard := ColorRect.new()
-		shard.size = Vector2(5, 5)
-		shard.color = Color(0.8, 0.2, 1.0, 0.9)
+		var shard := Sprite2D.new()
+		shard.texture = PixelRenderer.generate_pixel_shard_texture(5, 5, Color(0.8, 0.2, 1.0, 0.9))
 		shard.global_position = center
 		world.add_child(shard)
 
@@ -503,21 +502,21 @@ func _spawn_hex_burst() -> void:
 		var vel := Vector2(cos(angle), sin(angle)) * randf_range(60.0, 140.0)
 		var tween := create_tween()
 		tween.tween_property(shard, "global_position", center + vel * 0.45, 0.45)
-		tween.parallel().tween_property(shard, "color:a", 0.0, 0.45)
-		tween.parallel().tween_property(shard, "size", Vector2(2, 2), 0.45)
+		tween.parallel().tween_property(shard, "modulate:a", 0.0, 0.45)
+		tween.parallel().tween_property(shard, "scale", Vector2(0.4, 0.4), 0.45)
 		tween.tween_callback(shard.queue_free)
 
 	# Central flash
-	var flash_ring := ColorRect.new()
-	flash_ring.size = Vector2(96, 96)
-	flash_ring.color = Color(0.6, 0.0, 1.0, 0.4)
-	flash_ring.global_position = center - Vector2(48, 48)
+	var flash_ring := Sprite2D.new()
+	flash_ring.texture = PixelRenderer.generate_glow_texture(48)
+	flash_ring.modulate = Color(0.6, 0.0, 1.0, 0.4)
+	flash_ring.global_position = center
 	flash_ring.rotation = randf() * TAU
 	world.add_child(flash_ring)
 
 	var ft := create_tween()
-	ft.tween_property(flash_ring, "size", Vector2(160, 160), 0.2)
-	ft.parallel().tween_property(flash_ring, "color:a", 0.0, 0.25)
+	ft.tween_property(flash_ring, "scale", Vector2(1.6, 1.6), 0.2)
+	ft.parallel().tween_property(flash_ring, "modulate:a", 0.0, 0.25)
 	ft.tween_callback(flash_ring.queue_free)
 
 
@@ -617,6 +616,16 @@ func restore_full() -> void:
 	emit_signal("health_changed", 1.0)
 	_refresh_blade_sprite()
 
+func repair(amount: int) -> void:
+	current_health = mini(MAX_HEALTH, current_health + amount)
+	health_pct     = float(current_health) / float(MAX_HEALTH)
+	emit_signal("health_changed", health_pct)
+	_refresh_blade_sprite()
+	if blade_sprite:
+		var flash := create_tween()
+		flash.tween_property(blade_sprite, "modulate", Color(0.6, 1.4, 2.0, 1.0), 0.08)
+		flash.tween_property(blade_sprite, "modulate", Color.WHITE, 0.25)
+
 # ── Death — the blade shatters ────────────────────────────────────────────────
 const C_BLADE_BODY := Color(0.70, 0.80, 0.90, 1.0)
 const C_CRACK_GLOW := Color(0.80, 0.20, 1.00, 1.0)
@@ -633,10 +642,12 @@ func _spawn_shard_particles() -> void:
 		return
 
 	for i in range(24):
-		var shard := ColorRect.new()
-		shard.size          = Vector2(randf_range(2, 4), randf_range(4, 12))
+		var sw := randi_range(2, 4)
+		var sh := randi_range(4, 12)
+		var scol: Color = C_BLADE_BODY if randf() > 0.35 else C_CRACK_GLOW
+		var shard := Sprite2D.new()
+		shard.texture = PixelRenderer.generate_pixel_shard_texture(sw, sh, scol)
 		shard.rotation      = randf() * TAU
-		shard.color         = C_BLADE_BODY if randf() > 0.35 else C_CRACK_GLOW
 		shard.global_position = global_position
 		world.add_child(shard)
 

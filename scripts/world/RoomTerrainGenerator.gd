@@ -56,7 +56,7 @@ static func render_room(
 	var anchors := _get_floor_anchors(node, w, h)
 	print("    floor anchors: ", anchors)
 	while b_attempt < max_b_retries:
-		RoomArchetype.apply_skeleton(grid, node.archetype, rng, w, h, node.portals, available_slots)
+		RoomArchetype.apply_skeleton(grid, node.archetype, rng, w, h, node.portals, available_slots, node.complexity)
 		if _portals_are_connected(grid, node, w, h):
 			break
 		push_warning("RoomTerrainGenerator: skeleton connectivity failed for node %d (archetype %s), retry %d" % [node_id, RoomArchetype.get_archetype_name(node.archetype), b_attempt + 1])

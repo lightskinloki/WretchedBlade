@@ -1,5 +1,9 @@
 # Wretched Blade
 
+> [!CAUTION]
+> **ABSOLUTE PROJECT RULE**: 100% RUNTIME PROCEDURAL GENERATION. ZERO PRE-MADE ASSETS. ZERO EXCEPTIONS.
+> Everything — rooms, UI, background scenery, hub sanctuaries, enemies, player, maps — MUST be procedurally generated at runtime via `PixelRenderer`, `RoomTerrainGenerator`, and `WorldGenerator`. Any attempt to use static image assets, ad-hoc shape placeholders, or non-procgen bypasses is a critical violation. See [CORE_RULES.md](file:///c:/WretchedBlade/CORE_RULES.md).
+
 A 2D souls-like ARPG built entirely from procedurally generated pixel art.
 No image assets. Zero exceptions. Every single aspect is runtime-generated.
 

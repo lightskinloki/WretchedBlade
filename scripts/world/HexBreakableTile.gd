@@ -23,6 +23,9 @@ const CELL_PX_H := TILE_SIZE / CELL_ROWS   # 4 pixels tall per cell
 # Hex energy tint colour for particle blending
 const HEX_TINT := Color(0.35, 0.05, 0.60, 1.0)
 
+signal destroyed
+signal image_updated(new_image: Image)
+
 var linked_sprite: Sprite2D
 
 var _pixel_alive:  Array   # [TILE_SIZE][TILE_SIZE] bool
@@ -49,8 +52,9 @@ func setup(source_image: Image) -> void:
 		alive_row.resize(TILE_SIZE)
 		color_row.resize(TILE_SIZE)
 		for x in range(TILE_SIZE):
-			alive_row[x]  = true
-			color_row[x]  = _image.get_pixel(x, y)
+			var col := _image.get_pixel(x, y)
+			alive_row[x]  = (col.a > 0.0)
+			color_row[x]  = col
 		_pixel_alive[y]  = alive_row
 		_pixel_colors[y] = color_row
 
@@ -70,12 +74,19 @@ func setup(source_image: Image) -> void:
 		alive_row.resize(CELL_COLS)
 		cell_row.resize(CELL_COLS)
 		for cx in range(CELL_COLS):
-			alive_row[cx] = CELL_PX_W * CELL_PX_H   # all pixels alive
+			var alive_cnt := 0
+			for py in range(cy * CELL_PX_H, (cy + 1) * CELL_PX_H):
+				for px in range(cx * CELL_PX_W, (cx + 1) * CELL_PX_W):
+					if _pixel_alive[py][px]:
+						alive_cnt += 1
+			alive_row[cx] = alive_cnt
 
 			var shape_node := CollisionShape2D.new()
 			var rect       := RectangleShape2D.new()
 			rect.size      = Vector2(CELL_PX_W, CELL_PX_H)
 			shape_node.shape = rect
+			if alive_cnt <= 0:
+				shape_node.disabled = true
 			# Centre of cell relative to tile centre
 			var ox := (cx * CELL_PX_W + CELL_PX_W * 0.5) - TILE_SIZE * 0.5
 			var oy := (cy * CELL_PX_H + CELL_PX_H * 0.5) - TILE_SIZE * 0.5
@@ -156,10 +167,11 @@ func _destroy_pixels(pixels: Array[Vector2i], global_impact: Vector2) -> void:
 		_cell_alive[cy][cx] -= 1
 		if _cell_alive[cy][cx] <= 0:
 			_cell_alive[cy][cx] = 0
-			(_cells[cy][cx] as CollisionShape2D).disabled = true
+			(_cells[cy][cx] as CollisionShape2D).set_deferred("disabled", true)
 
 	# One GPU push for the entire batch
 	_texture.update(_image)
+	image_updated.emit(_image)
 
 	_spawn_particles(pixels, global_impact)
 	_check_fully_destroyed()
@@ -187,9 +199,8 @@ func _spawn_particles(pixels: Array[Vector2i], global_impact: Vector2) -> void:
 			float(py) - TILE_SIZE * 0.5 + 0.5
 		)
 
-		var shard := ColorRect.new()
-		shard.size   = Vector2(1.0, 1.0)
-		shard.color  = final_col
+		var shard := Sprite2D.new()
+		shard.texture = PixelRenderer.generate_pixel_shard_texture(1, 1, final_col)
 		shard.global_position = pixel_world
 		world.add_child(shard)
 
@@ -213,6 +224,7 @@ func _check_fully_destroyed() -> void:
 			if _cell_alive[cy][cx] > 0:
 				return
 	# All cells empty — free the tile
+	destroyed.emit()
 	if linked_sprite and is_instance_valid(linked_sprite):
 		linked_sprite.queue_free()
 	queue_free()

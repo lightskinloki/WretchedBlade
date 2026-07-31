@@ -28,6 +28,8 @@ var _hex_entry_labels: Array[RichTextLabel] = []
 var _unlock_flash: ColorRect
 var _unlock_timer := 0.0
 const UNLOCK_FLASH_DURATION := 4.0
+var whetstone_label: Label
+var god_mode_label: Label
 
 func _ready() -> void:
 	EssenceManager.essence_changed.connect(_on_essence_changed)
@@ -37,10 +39,38 @@ func _ready() -> void:
 	_on_essence_changed(0)
 	combo_label.visible = false
 
+	whetstone_label = Label.new()
+	whetstone_label.position = Vector2(20, 50)
+	whetstone_label.size = Vector2(240, 24)
+	whetstone_label.add_theme_font_size_override("font_size", 14)
+	whetstone_label.modulate = Color(0.5, 0.9, 1.0, 1.0)
+	add_child(whetstone_label)
+
+	god_mode_label = Label.new()
+	god_mode_label.text = "★ GOD MODE ACTIVE [F1] ★"
+	god_mode_label.position = Vector2(20, 75)
+	god_mode_label.size = Vector2(260, 24)
+	god_mode_label.add_theme_font_size_override("font_size", 14)
+	god_mode_label.modulate = Color(1.0, 0.85, 0.2, 1.0)
+	god_mode_label.visible = GameManager.is_god_mode
+	add_child(god_mode_label)
+
+	GameManager.god_mode_toggled.connect(func(active: bool):
+		god_mode_label.visible = active
+	)
+
+	GameManager.whetstone_used.connect(_update_whetstone_display)
+	GameManager.whetstone_refilled.connect(_update_whetstone_display)
+	_update_whetstone_display(GameManager.whetstone_charges)
+
 	_build_hex_inventory()
 	_build_unlock_flash()
 
 	HexManager.hex_unlocked.connect(_on_hex_unlocked)
+
+func _update_whetstone_display(count: int) -> void:
+	if whetstone_label:
+		whetstone_label.text = "WHETSTONES: %d/%d  [H]" % [count, GameManager.MAX_WHETSTONES]
 
 
 func _process(delta: float) -> void:

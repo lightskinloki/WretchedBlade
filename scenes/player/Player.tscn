@@ -1,0 +1,45 @@
+[gd_scene load_steps=5 format=3 uid="uid://player_scene"]
+
+[ext_resource type="Script" path="res://scripts/player/Player.gd" id="1_player"]
+[ext_resource type="Script" path="res://scripts/player/WretchedBlade.gd" id="2_blade"]
+
+[sub_resource type="RectangleShape2D" id="Shape_player"]
+size = Vector2(20.0, 40.0)
+
+[sub_resource type="RectangleShape2D" id="Shape_hitbox"]
+size = Vector2(8.0, 28.0)
+
+[node name="Player" type="CharacterBody2D" groups=["player"]]
+collision_layer = 4
+collision_mask = 1
+script = ExtResource("1_player")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Shape_player")
+
+[node name="ProjectedBody" type="Node2D" parent="."]
+
+[node name="BodySprite" type="Sprite2D" parent="ProjectedBody"]
+
+[node name="WretchedBlade" type="Node2D" parent="."]
+position = Vector2(16.0, -20.0)
+script = ExtResource("2_blade")
+
+[node name="BladeSprite" type="Sprite2D" parent="WretchedBlade"]
+
+[node name="AttackHitbox" type="Area2D" parent="WretchedBlade"]
+position = Vector2(0.0, -10.0)
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WretchedBlade/AttackHitbox"]
+shape = SubResource("Shape_hitbox")
+
+[node name="HexHitbox" type="Area2D" parent="WretchedBlade"]
+position = Vector2(0.0, -10.0)
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WretchedBlade/HexHitbox"]
+shape = SubResource("Shape_hitbox")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(2.0, 2.0)

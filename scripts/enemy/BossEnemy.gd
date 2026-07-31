@@ -54,6 +54,13 @@ var _next_attack_mult := 1.0
 var _shielded := false
 var _intangible := false
 
+# Posture (Poise) & Hex Barrier Systems
+var max_posture: float = 100.0
+var current_posture: float = 100.0
+var posture_regen_timer: float = 0.0
+var hex_barrier_active: bool = false
+var _barrier_sprite: Sprite2D = null
+
 # Charge/leap motion
 var _charge_dir := 1.0
 var _leap_target := Vector2.ZERO
@@ -87,6 +94,13 @@ func _ready() -> void:
 		return
 
 	current_hp = blueprint.max_hp
+	_damage_mult = lerpf(0.8, 1.4, blueprint.difficulty)
+
+	# Posture threshold derived from body stagger resistance + difficulty scaling
+	var stagger_res := blueprint.stagger_resistance
+	max_posture = (60.0 + stagger_res * 100.0) * lerpf(0.8, 1.5, blueprint.difficulty)
+	current_posture = max_posture
+
 	_rng.seed = blueprint.seed_val
 	_move_ai = BossBodyTypes.get_data(blueprint.body_type)["move_ai"]
 
@@ -185,6 +199,11 @@ func _update_timers(delta: float) -> void:
 		if _buff_timer <= 0.0:
 			_end_buff()
 
+	if posture_regen_timer > 0.0:
+		posture_regen_timer -= delta
+	else:
+		current_posture = minf(max_posture, current_posture + max_posture * 0.25 * delta)
+
 # ── Movement AI ───────────────────────────────────────────────────────────────
 func _movement_ai(player: Node2D, delta: float) -> void:
 	var dist := global_position.distance_to(player.global_position)
@@ -227,7 +246,12 @@ func _movement_ai(player: Node2D, delta: float) -> void:
 # ── Pattern controller ────────────────────────────────────────────────────────
 func _pattern_controller(player: Node2D, _delta: float) -> void:
 	var dist := global_position.distance_to(player.global_position)
+	var player_spd: float = player.velocity.length() if player is CharacterBody2D else 0.0
+	var player_healing_or_charging: bool = (player_spd < 15.0 and dist > 120.0)
+
 	var available: Array = []
+	var priority_available: Array = []
+
 	for ability_id in _unlocked_abilities():
 		if _cooldowns.get(ability_id, 0.0) > 0.0:
 			continue
@@ -691,6 +715,20 @@ func _update_hazards(delta: float) -> void:
 		i -= 1
 
 # ── Damage / counters / phases ───────────────────────────────────────────────
+func take_hex_damage(impact_pos: Vector2, _pattern: Dictionary) -> void:
+	if hex_barrier_active:
+		_break_hex_barrier()
+	var dmg := int(round(14.0 * _damage_mult))
+	take_damage(dmg, (global_position - impact_pos).normalized() * 120.0)
+
+func _break_hex_barrier() -> void:
+	hex_barrier_active = false
+	if _barrier_sprite and is_instance_valid(_barrier_sprite):
+		var t := create_tween()
+		t.tween_property(_barrier_sprite, "modulate:a", 0.0, 0.25)
+		t.tween_callback(_barrier_sprite.queue_free)
+		_barrier_sprite = null
+
 func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
 	if is_boss_defeated or _invuln_timer > 0.0 or _intangible:
 		return
@@ -704,13 +742,24 @@ func take_damage(amount: int, knockback: Vector2 = Vector2.ZERO) -> void:
 			_buff_timer = 0.0
 		return
 
+	if hex_barrier_active:
+		amount = int(ceil(amount * 0.2))
+
+	posture_regen_timer = 2.5
+	current_posture -= float(amount)
+	if current_posture <= 0.0 and _stun_timer <= 0.0:
+		_stun_timer = COUNTER_STUN * (1.0 - blueprint.stagger_resistance * 0.4)
+		current_posture = max_posture
+		if sprite:
+			sprite.modulate = Color(2.0, 2.0, 0.4, 1.0)
+
 	current_hp = maxi(0, current_hp - amount)
 	emit_signal("health_changed", current_hp, blueprint.max_hp)
 
 	# Stagger response scales inversely with resistance
 	if _rng.randf() > blueprint.stagger_resistance:
 		velocity += knockback * 0.4
-	if sprite:
+	if sprite and _stun_timer <= 0.0:
 		sprite.modulate = Color(2.0, 0.6, 0.6, 1.0)
 		var t := sprite.create_tween()
 		t.tween_property(sprite, "modulate", Color.WHITE, 0.15)
@@ -735,9 +784,18 @@ func _phase_controller() -> void:
 func _begin_phase_shift(new_phase: int) -> void:
 	phase = new_phase
 	_astate = AState.PHASE_SHIFT
-	_state_timer = 0.5
+	_state_timer = 1.0
 	_invuln_timer = 1.5
 	velocity = Vector2.ZERO
+	# Activate Hex Barrier on phase shift
+	hex_barrier_active = true
+	if _barrier_sprite == null or not is_instance_valid(_barrier_sprite):
+		_barrier_sprite = Sprite2D.new()
+		_barrier_sprite.texture = PixelRenderer.generate_glow_texture(int(blueprint.hitbox_size.x * 0.9))
+		_barrier_sprite.modulate = Color(0.8, 0.2, 1.0, 0.7)
+		_barrier_sprite.centered = true
+		add_child(_barrier_sprite)
+
 	# Cooldown reset (Axis 5)
 	for id in _cooldowns:
 		_cooldowns[id] = 0.0
@@ -775,7 +833,8 @@ func countered() -> void:
 		return
 	_astate = AState.IDLE
 	_current_ability = ""
-	_stun_timer = COUNTER_STUN * (1.0 - blueprint.stagger_resistance * 0.5)
+	current_posture = maxf(0.0, current_posture - 80.0)
+	_stun_timer = COUNTER_STUN * (1.0 - blueprint.stagger_resistance * 0.4)
 	velocity = Vector2.ZERO
 	print("[BOSS] COUNTERED — stunned %.2fs" % _stun_timer)
 

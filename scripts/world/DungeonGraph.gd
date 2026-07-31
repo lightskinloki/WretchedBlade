@@ -18,6 +18,7 @@ class RoomNode:
 	var on_critical_path: bool
 	var is_dead_end: bool
 	var secret_type: int
+	var complexity: float
 	var portals: Array
 
 	func _init(
@@ -35,6 +36,7 @@ class RoomNode:
 		on_critical_path = false
 		is_dead_end = false
 		secret_type = SecretType.NONE
+		complexity = 0.5
 		portals = []
 
 # Ã¢â€â‚¬Ã¢â€â‚¬ Edge descriptor for errors and validation Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬

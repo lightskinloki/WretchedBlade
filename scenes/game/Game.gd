@@ -16,7 +16,9 @@ var _current_node       := -1
 var _previous_node      := -1
 var _transitioning      := false
 var _triggered_nodes:   Dictionary = {}  # int node_id -> bool
+var _cleared_rooms:     Dictionary = {}  # int node_id -> bool
 var _near_portal_node:  int = -1        # connected_node of nearby portal
+const EXIT_SENTINEL := -999             # sentinel value for dungeon exit beacon
 var _exit_interact_prompt: Label
 var _player_hurt_flash:    ColorRect
 var _checkpoint_nodes:     Array[int] = []
@@ -84,22 +86,28 @@ func _ready() -> void:
 		InputMap.add_action("hex_inventory")
 		InputMap.action_add_event("hex_inventory", hv)
 
-	_start_dungeon(randi())
+	# Read dungeon parameters from GameManager campaign state
+	var region := GameManager.active_region_data
+	var seed_val: int = region.get("seed", randi())
+	if seed_val == 0:
+		seed_val = randi()
+	_start_dungeon(seed_val, region.get("hex_theme", "geocrash"), region.get("difficulty", 0.4), region.get("is_boss", false))
 
-# â”€â”€ Dungeon lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-func _start_dungeon(seed_val: int) -> void:
+# ── Dungeon lifecycle ─────────────────────────────────────────────────────────
+func _start_dungeon(seed_val: int, hex_theme: String = "geocrash", difficulty: float = 0.4, is_boss: bool = false) -> void:
 	current_seed = seed_val
 	_current_node = -1
 	_previous_node = -1
 	_triggered_nodes = {}
+	_cleared_rooms = {}
 	_checkpoint_nodes = []
 	world_gen.clear_cache()
 
 	dungeon_graph = dungeon_generator.generate_graph({
 		"seed": seed_val,
-		"is_boss": false,
-		"hex_theme": "geocrash",
-		"difficulty": 0.4,
+		"is_boss": is_boss,
+		"hex_theme": hex_theme,
+		"difficulty": difficulty,
 	})
 
 	_checkpoint_nodes = dungeon_graph.meta.get("checkpoint_nodes", [])
@@ -127,13 +135,18 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 	var theme := _theme_string_to_enum(theme_str)
 
 	var grid: Array = world_gen.build_grid_for_graph_node(dungeon_graph, node_id, rng, theme)
-	world_gen.build_room(grid, world, true)
+	world_gen.build_room(grid, world, true, node_id)
 
 	# Move player to safe spawn BEFORE adding kill triggers or enemies
 	# so body_entered can't fire from the old position overlapping new hazards.
 	var spawn_pos := _find_spawn_from_grid(grid, node, prev_node_id)
 	print("  spawn_pos=(%d, %d) grid_rows=%d grid_cols=%d" % [spawn_pos.x, spawn_pos.y, grid.size(), grid[0].size() if grid.size() > 0 else 0])
-	GameManager.set_checkpoint(spawn_pos)
+	
+	# Only set checkpoint and restore health at sanctuaries, designated checkpoints, or dungeon start
+	var is_checkpoint_room: bool = (prev_node_id == -1) or _checkpoint_nodes.has(node_id) or (node.archetype == RoomArchetype.Archetype.SANCTUARY)
+	if is_checkpoint_room:
+		GameManager.set_checkpoint(spawn_pos)
+
 	player.global_position = spawn_pos
 	player.velocity = Vector2.ZERO
 	player.set_room_bounds(node.room_w, node.room_h)
@@ -146,14 +159,19 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 	for portal in node.portals:
 		_place_portal_exit(node_id, portal, node)
 
+	# Place exit beacon in the end node room
+	if node_id == dungeon_graph.get_end_node():
+		_place_exit_beacon(node, grid)
+
 	# Puzzle trigger
 	if dungeon_graph.meta.has("trigger_node") and dungeon_graph.meta["trigger_node"] == node_id:
 		_place_puzzle_trigger(node, grid)
 
-	# Spawn enemies
-	_spawn_enemies_for_node(node, grid)
+	# Spawn enemies (only if room is not already cleared)
+	if not _cleared_rooms.get(node_id, false):
+		_spawn_enemies_for_node(node, grid)
 
-# â”€â”€ Enemy spawning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Enemy spawning ──────────────────────────────────────────────────────────
 func _spawn_enemies_for_node(node: DungeonGraph.RoomNode, grid: Array = []) -> void:
 	var arch := node.archetype
 	var spec := DungeonPlan.make_room_spec()
@@ -194,6 +212,12 @@ func _spawn_enemies_for_node(node: DungeonGraph.RoomNode, grid: Array = []) -> v
 		_spawn_boss(node, grid)
 		return
 
+	# Scale enemy counts by room complexity (0.5 = baseline, 1.0 = +50%)
+	var cx: float = node.complexity
+	var enemy_scale: float = 0.5 + cx
+	nullman = maxi(0, int(float(nullman) * enemy_scale))
+	rival = maxi(0, int(float(rival) * enemy_scale))
+
 	# Non-boss end node keeps the champion behavior
 	if node.node_id == dungeon_graph.get_end_node():
 		spec["has_champion"] = true
@@ -204,6 +228,7 @@ func _spawn_enemies_for_node(node: DungeonGraph.RoomNode, grid: Array = []) -> v
 	spec["room_w"] = node.room_w
 	spec["room_h"] = node.room_h
 	spec["grid"] = grid
+	spec["complexity"] = cx
 	world_gen.spawn_enemies_from_spec(world, spec)
 
 # ── Boss spawning (BOSS_DESIGN.md Build Order step 8) ───────────────────────
@@ -349,11 +374,108 @@ func _hide_portal_prompt() -> void:
 	_exit_interact_prompt.visible = false
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact") and _near_portal_node >= 0 and player.is_on_floor():
+	if event.is_action_pressed("interact") and _near_portal_node == EXIT_SENTINEL and player.is_on_floor():
+		get_viewport().set_input_as_handled()
+		_exit_dungeon_to_overworld()
+	elif event.is_action_pressed("interact") and _near_portal_node >= 0 and player.is_on_floor():
 		get_viewport().set_input_as_handled()
 		_attempt_portal_transition(_near_portal_node)
 
-# â”€â”€ Portal transition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Dungeon Exit Beacon ──────────────────────────────────────────────────────
+func _place_exit_beacon(node: DungeonGraph.RoomNode, grid: Array) -> void:
+	# Place a glowing pillar in the center of the end room
+	var room_center_x := float(node.room_w) * float(TILE_SIZE) * 0.5
+	# Find the floor in the center column
+	var center_col := node.room_w / 2
+	var floor_y := node.room_h - 2
+	for row_idx in range(3, node.room_h):
+		if row_idx < grid.size() and center_col < grid[row_idx].size():
+			if grid[row_idx][center_col] == 1:
+				floor_y = row_idx
+				break
+	var beacon_bottom := float(floor_y) * float(TILE_SIZE)
+	var beacon_height := 5.0 * float(TILE_SIZE)
+	var beacon_width := 3.0 * float(TILE_SIZE)
+	var beacon_center_y := beacon_bottom - beacon_height * 0.5
+
+	# Visual glow column
+	var glow_img := Image.create(int(beacon_width), int(beacon_height), false, Image.FORMAT_RGBA8)
+	for py in range(glow_img.get_height()):
+		var fy := float(py) / float(glow_img.get_height())
+		var alpha := 0.45 * (1.0 - fy * fy)  # Brighter at top, fades down
+		for px in range(glow_img.get_width()):
+			var fx: float = abs(float(px) / float(glow_img.get_width()) - 0.5) * 2.0
+			var col_alpha: float = alpha * (1.0 - fx * fx)  # Brighter in center
+			glow_img.set_pixel(px, py, Color(0.6, 0.4, 1.0, col_alpha))
+	var glow_tex := ImageTexture.create_from_image(glow_img)
+	var glow := Sprite2D.new()
+	glow.name = "ExitBeaconGlow"
+	glow.texture = glow_tex
+	glow.position = Vector2(room_center_x, beacon_center_y)
+	world.add_child(glow)
+
+	# Pulsing animation
+	var tw := glow.create_tween().set_loops()
+	tw.tween_property(glow, "modulate", Color(1.2, 1.0, 1.4, 1.0), 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(glow, "modulate", Color(0.8, 0.6, 1.0, 0.6), 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+	# Base rune visual (small bright square at the floor)
+	var rune_size := int(beacon_width * 0.6)
+	var rune_img := Image.create(rune_size, 4, false, Image.FORMAT_RGBA8)
+	rune_img.fill(Color(0.7, 0.5, 1.0, 0.8))
+	var rune_tex := ImageTexture.create_from_image(rune_img)
+	var rune := Sprite2D.new()
+	rune.name = "ExitBeaconRune"
+	rune.texture = rune_tex
+	rune.position = Vector2(room_center_x, beacon_bottom - 2.0)
+	world.add_child(rune)
+
+	# Detection zone
+	var area := Area2D.new()
+	area.name = "ExitBeaconArea"
+	area.monitoring  = true
+	area.monitorable = false
+	area.collision_mask = 4  # Player layer
+
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(beacon_width + float(TILE_SIZE), beacon_height)
+	cs.shape = rect
+	area.add_child(cs)
+	area.position = Vector2(room_center_x, beacon_center_y)
+
+	area.body_entered.connect(func(body: Node2D):
+		if body.is_in_group("player"):
+			_near_portal_node = EXIT_SENTINEL
+			_exit_interact_prompt.text = "Press E to Exit Dungeon"
+			_exit_interact_prompt.visible = true
+	)
+	area.body_exited.connect(func(body: Node2D):
+		if body.is_in_group("player") and _near_portal_node == EXIT_SENTINEL:
+			_near_portal_node = -1
+			_hide_portal_prompt()
+	)
+
+	world.add_child(area)
+
+func _exit_dungeon_to_overworld() -> void:
+	if _transitioning:
+		return
+	_transitioning = true
+	_hide_portal_prompt()
+
+	player.velocity = Vector2.ZERO
+	player.set_physics_process(false)
+
+	await transition_screen.fade_in()
+	GameManager.complete_current_region()
+	await transition_screen.show_room_text("[ RETURNING TO OVERWORLD ]")
+	await transition_screen.fade_out()
+	player.set_physics_process(true)
+	_transitioning = false
+	GameManager.return_to_overworld()
+
+# ── Portal transition ─────────────────────────────────────────────────────────
 func _attempt_portal_transition(target_node: int) -> void:
 	if _transitioning or dungeon_graph == null:
 		return
@@ -375,11 +497,21 @@ func _attempt_portal_transition(target_node: int) -> void:
 	_transitioning = true
 	var prev := _current_node
 
+	# Check if current room has been cleared of enemies
+	var remaining_enemies := get_tree().get_nodes_in_group("enemy")
+	var living_count := 0
+	for e in remaining_enemies:
+		if is_instance_valid(e) and not e.is_queued_for_deletion():
+			living_count += 1
+	if living_count == 0:
+		_cleared_rooms[_current_node] = true
+
 	# Freeze player physics before the fade so no velocity accumulates during blackout
 	player.velocity = Vector2.ZERO
 	player.set_physics_process(false)
 
 	await transition_screen.fade_in()
+
 	_current_node = target_node
 	_previous_node = prev
 	_load_room(_current_node, _previous_node)
@@ -394,7 +526,7 @@ func _attempt_portal_transition(target_node: int) -> void:
 	player.set_physics_process(true)
 	_transitioning = false
 
-# â”€â”€ Puzzle trigger system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Puzzle trigger system ─────────────────────────────────────────────────────
 func _place_puzzle_trigger(node: DungeonGraph.RoomNode, grid: Array = []) -> void:
 	var area := Area2D.new()
 	area.name = "PuzzleTrigger"
@@ -413,14 +545,21 @@ func _place_puzzle_trigger(node: DungeonGraph.RoomNode, grid: Array = []) -> voi
 	var cy := float(floor_y) * float(TILE_SIZE)
 	area.position = Vector2(cx, cy)
 
+	var trigger_nid := node.node_id
+	var already_triggered: bool = _triggered_nodes.get(trigger_nid, false)
+
 	# Visual indicator: pressure plate sprite at center of trigger
 	var plate_sprite := Sprite2D.new()
 	plate_sprite.texture = PixelRenderer.generate_tile_texture(PixelRenderer.TileType.PRESSURE_PLATE, 8)
-	plate_sprite.scale = Vector2(2.0, 2.0)
+	if already_triggered:
+		plate_sprite.scale = Vector2(2.2, 1.2)
+		plate_sprite.modulate = Color(0.6, 1.0, 0.6, 1.0)
+	else:
+		plate_sprite.scale = Vector2(2.0, 2.0)
 	plate_sprite.position = Vector2.ZERO
 	area.add_child(plate_sprite)
 
-	var trigger_nid := node.node_id
+
 	area.body_entered.connect(func(body: Node2D):
 		if body.is_in_group("player") and not _triggered_nodes.get(trigger_nid, false):
 			_triggered_nodes[trigger_nid] = true

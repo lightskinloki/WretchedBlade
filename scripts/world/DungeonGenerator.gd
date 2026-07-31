@@ -47,7 +47,11 @@ func generate_graph(params: Dictionary) -> DungeonGraph:
 	var path_nodes: Array[int] = []
 	var prev_id := -1
 	var trigger_node := -1
+	var total_path_rooms := 0
+	for spec in section_specs:
+		total_path_rooms += int(spec[1])
 
+	var global_room_idx := 0
 	for spec in section_specs:
 		var section_name: String = spec[0]
 		var room_count: int = spec[1]
@@ -56,12 +60,28 @@ func generate_graph(params: Dictionary) -> DungeonGraph:
 
 		for i in range(room_count):
 			var arch := _archetype_for_section(section_name, i, room_count, sec_rng)
+
+			# Compute complexity: linear ramp along critical path + section boost
+			var base_complexity: float = float(global_room_idx) / float(maxi(1, total_path_rooms - 1))
+			var section_boost: float = 0.0
+			if section_name == "climax" or section_name == "setback":
+				section_boost = 0.15
+			elif section_name == "reward":
+				section_boost = -0.2
+			var room_complexity: float = clampf(base_complexity + section_boost, 0.0, 1.0)
+
+			# Lerp dimensions using complexity instead of pure random
 			var dims := RoomArchetype.get_dimension_range(arch)
-			var w := sec_rng.randi_range(dims.min_w, dims.max_w)
-			var h := sec_rng.randi_range(dims.min_h, dims.max_h)
+			var w := int(lerpf(float(dims.min_w), float(dims.max_w), room_complexity))
+			var h := int(lerpf(float(dims.min_h), float(dims.max_h), room_complexity))
+			# Add small random jitter (±10%) so rooms aren't perfectly deterministic
+			w = clampi(w + sec_rng.randi_range(-2, 2), dims.min_w, dims.max_w)
+			h = clampi(h + sec_rng.randi_range(-1, 1), dims.min_h, dims.max_h)
 
 			var nid := graph.create_node(arch, w, h, path_nodes.size())
+			graph.get_node(nid).complexity = room_complexity
 			path_nodes.append(nid)
+			global_room_idx += 1
 
 			# Wire edge from previous node on critical path
 			if prev_id >= 0:
@@ -277,9 +297,11 @@ static func _build_linear_branch(graph: DungeonGraph, origin_id: int, origin_slo
 	for b in range(depth):
 		var branch_arch := _branch_archetype(rng)
 		var bdims := RoomArchetype.get_dimension_range(branch_arch)
-		var bw := rng.randi_range(bdims.min_w, bdims.max_w)
-		var bh := rng.randi_range(bdims.min_h, bdims.max_h)
+		var branch_cx: float = 0.4  # Side content: moderate complexity
+		var bw := clampi(int(lerpf(float(bdims.min_w), float(bdims.max_w), branch_cx)) + rng.randi_range(-2, 2), bdims.min_w, bdims.max_w)
+		var bh := clampi(int(lerpf(float(bdims.min_h), float(bdims.max_h), branch_cx)) + rng.randi_range(-1, 1), bdims.min_h, bdims.max_h)
 		var bid := graph.create_node(branch_arch, bw, bh, -1)
+		graph.get_node(bid).complexity = branch_cx
 
 		# Entry side is opposite of the source slot's side so the player
 		# always exits from the opposite side of the room they entered from.
@@ -333,9 +355,11 @@ static func _build_reconnect_branch(graph: DungeonGraph, origin_id: int, origin_
 	for b in range(branch_count):
 		var branch_arch := _branch_archetype(rng)
 		var bdims := RoomArchetype.get_dimension_range(branch_arch)
-		var bw := rng.randi_range(bdims.min_w, bdims.max_w)
-		var bh := rng.randi_range(bdims.min_h, bdims.max_h)
+		var branch_cx: float = 0.4
+		var bw := clampi(int(lerpf(float(bdims.min_w), float(bdims.max_w), branch_cx)) + rng.randi_range(-2, 2), bdims.min_w, bdims.max_w)
+		var bh := clampi(int(lerpf(float(bdims.min_h), float(bdims.max_h), branch_cx)) + rng.randi_range(-1, 1), bdims.min_h, bdims.max_h)
 		var bid := graph.create_node(branch_arch, bw, bh, -1)
+		graph.get_node(bid).complexity = branch_cx
 
 		# Entry side is opposite of the source slot's side.
 		var src_side := _get_slot_side(graph.get_node(prev_id).archetype, prev_slot)

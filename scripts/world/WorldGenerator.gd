@@ -40,9 +40,11 @@ var _tex: Dictionary = {}
 # ── Room grid cache — persists generated grids so revisiting a room returns
 # the same layout. Keyed by node_id. Cleared on new dungeon start.
 var _grid_cache: Dictionary = {}
+var _tile_image_cache: Dictionary = {}
 
 func clear_cache() -> void:
 	_grid_cache = {}
+	_tile_image_cache = {}
 
 func _ready() -> void:
 	_cache_textures()
@@ -75,7 +77,7 @@ func build_grid_for_graph_node(graph: DungeonGraph, node_id: int, rng: RandomNum
 # parent should be a Node2D in the scene tree (e.g. the "World" node)
 # If suppress_triggers is true, does not add the default exit/abyss triggers
 # (Game.gd handles them internally when using DungeonPlan).
-func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false) -> void:
+func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false, node_id: int = -1) -> void:
 	var room_w: int = grid[0].size() if grid.size() > 0 else ROOM_W
 	var room_h: int = grid.size()
 	for y in range(room_h):
@@ -97,18 +99,47 @@ func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false) ->
 			if id in [FLOOR, WALL, PLATFORM, NULLSTONE, CHECKPOINT, LOCKED_DOOR, HEX_WALL]:
 				var body: StaticBody2D
 				if id == PLATFORM:
-					body = DestructibleTile.new()
-					body.linked_sprite = sprite
+					var dtile := DestructibleTile.new()
+					dtile.linked_sprite = sprite
+					body = dtile
+					if node_id >= 0:
+						var gx := x
+						var gy := y
+						dtile.destroyed.connect(func():
+							if _grid_cache.has(node_id) and gy < _grid_cache[node_id].size() and gx < _grid_cache[node_id][gy].size():
+								_grid_cache[node_id][gy][gx] = EMPTY
+						)
 				elif id == FLOOR or id == HEX_WALL:
 					var htile := _HexBreakableTile.new()
 					htile.linked_sprite = sprite
 					htile.position      = sprite.position
 					parent.add_child(htile)
 					var type := PixelRenderer.TileType.FLOOR if id == FLOOR else PixelRenderer.TileType.WALL
-					var src_img := PixelRenderer.generate_tile_image(
-						type,
-						hash(Vector2i(x, y))
-					)
+					var pos_key := Vector2i(x, y)
+					var src_img: Image
+					if node_id >= 0 and _tile_image_cache.has(node_id) and _tile_image_cache[node_id].has(pos_key):
+						src_img = _tile_image_cache[node_id][pos_key]
+					else:
+						src_img = PixelRenderer.generate_tile_image(
+							type,
+							hash(pos_key)
+						)
+
+					if node_id >= 0:
+						var gx := x
+						var gy := y
+						htile.image_updated.connect(func(img: Image):
+							if not _tile_image_cache.has(node_id):
+								_tile_image_cache[node_id] = {}
+							_tile_image_cache[node_id][pos_key] = img.duplicate()
+						)
+						htile.destroyed.connect(func():
+							if _grid_cache.has(node_id) and gy < _grid_cache[node_id].size() and gx < _grid_cache[node_id][gy].size():
+								_grid_cache[node_id][gy][gx] = EMPTY
+							if _tile_image_cache.has(node_id):
+								_tile_image_cache[node_id].erase(pos_key)
+						)
+
 					htile.setup(src_img)
 					continue
 				else:
@@ -285,9 +316,15 @@ func _add_abyss_kill_trigger(parent: Node2D, room_w: int, room_h: int) -> void:
 			body.velocity.round() if body is CharacterBody2D else Vector2.ZERO
 		])
 		if body.is_in_group("player"):
-			print("[KILLZONE] → killing player")
-			if body.has_method("take_damage"):
-				body.take_damage(9999)
+			if GameManager.is_god_mode:
+				print("[KILLZONE] → God Mode active: teleporting player back to checkpoint")
+				body.global_position = GameManager.get_respawn_position()
+				if body is CharacterBody2D:
+					body.velocity = Vector2.ZERO
+			else:
+				print("[KILLZONE] → killing player")
+				if body.has_method("take_damage"):
+					body.take_damage(9999)
 		elif body.is_in_group("enemy"):
 			print("[KILLZONE] → enemy fell into abyss, queuing free (no essence)")
 			body.queue_free()
