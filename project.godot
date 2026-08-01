@@ -17,7 +17,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="Wretched Blade"
 config/description="A 2D pixel art souls-like. You are the sword."
 run/main_scene="res://scenes/game/Game.tscn"
-config/features=PackedStringArray("4.6", "Mobile")
+config/features=PackedStringArray("4.6", "Forward Plus")
 
 [autoload]
 
@@ -29,10 +29,12 @@ HexManager="*res://autoload/HexManager.gd"
 
 [display]
 
-window/size/viewport_width=844
-window/size/viewport_height=390
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
+window/stretch/aspect="keep"
 
 [gdscript]
 

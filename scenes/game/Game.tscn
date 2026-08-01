@@ -58,7 +58,7 @@ monitoring = false
 shape = SubResource("Shape_hitbox")
 
 [node name="Camera2D" type="Camera2D" parent="Player"]
-zoom = Vector2(2.0, 2.0)
+zoom = Vector2(1.5, 1.5)
 
 ; ══════════════════════════════════════════════
 ;  TOUCH INPUT  (virtual joystick + buttons)
@@ -177,35 +177,35 @@ layer = 5
 script = ExtResource("5_hud")
 
 [node name="EssenceLabel" type="Label" parent="HUD"]
-offset_left = 10.0
-offset_top = 10.0
-offset_right = 180.0
-offset_bottom = 38.0
+offset_left = 20.0
+offset_top = 16.0
+offset_right = 220.0
+offset_bottom = 44.0
 text = "0  ESS"
 
 [node name="FormLabel" type="Label" parent="HUD"]
-offset_left = 352.0
-offset_top = 10.0
-offset_right = 492.0
-offset_bottom = 38.0
+offset_left = 540.0
+offset_top = 16.0
+offset_right = 740.0
+offset_bottom = 44.0
 horizontal_alignment = 1
 text = "EXECUTIONER"
 
 [node name="LostEssenceLabel" type="Label" parent="HUD"]
 visible = false
-offset_left = 654.0
-offset_top = 10.0
-offset_right = 834.0
-offset_bottom = 38.0
+offset_left = 1050.0
+offset_top = 16.0
+offset_right = 1260.0
+offset_bottom = 44.0
 horizontal_alignment = 2
 text = ""
 
 [node name="ComboLabel" type="Label" parent="HUD"]
 visible = false
-offset_left = 372.0
-offset_top = 100.0
-offset_right = 472.0
-offset_bottom = 150.0
+offset_left = 590.0
+offset_top = 140.0
+offset_right = 690.0
+offset_bottom = 190.0
 horizontal_alignment = 1
 vertical_alignment = 1
 theme_override_font_sizes/font_size = 28
@@ -229,29 +229,29 @@ color = Color(0.0, 0.0, 0.0, 0.62)
 mouse_filter = 0
 
 [node name="YouDiedLabel" type="Label" parent="DeathScreen"]
-offset_left = 272.0
-offset_top = 145.0
-offset_right = 572.0
-offset_bottom = 210.0
+offset_left = 490.0
+offset_top = 280.0
+offset_right = 790.0
+offset_bottom = 345.0
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 42
 text = "YOU DIED"
 modulate = Color(1, 1, 1, 0)
 
 [node name="HoldPrompt" type="Label" parent="DeathScreen"]
-offset_left = 252.0
-offset_top = 220.0
-offset_right = 592.0
-offset_bottom = 252.0
+offset_left = 470.0
+offset_top = 355.0
+offset_right = 810.0
+offset_bottom = 387.0
 horizontal_alignment = 1
 text = "Hold to Reconstitute"
 modulate = Color(1, 1, 1, 0)
 
 [node name="HoldBar" type="ProgressBar" parent="DeathScreen"]
-offset_left = 222.0
-offset_top = 262.0
-offset_right = 622.0
-offset_bottom = 285.0
+offset_left = 440.0
+offset_top = 400.0
+offset_right = 840.0
+offset_bottom = 423.0
 max_value = 100.0
 value = 0.0
 show_percentage = false
@@ -289,10 +289,10 @@ mouse_filter = 2
 
 ; Room number label displayed briefly during transition
 [node name="RoomLabel" type="Label" parent="TransitionScreen"]
-offset_left = 332.0
-offset_top = 175.0
-offset_right = 512.0
-offset_bottom = 215.0
+offset_left = 550.0
+offset_top = 340.0
+offset_right = 730.0
+offset_bottom = 380.0
 horizontal_alignment = 1
 vertical_alignment = 1
 theme_override_font_sizes/font_size = 32
