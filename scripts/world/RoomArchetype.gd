@@ -102,16 +102,16 @@ static func get_archetype_name(archetype: int) -> String:
 static func get_dimension_range(archetype: int, complexity: float = -1.0) -> Dictionary:
 	var base_range: Dictionary
 	match archetype:
-		Archetype.GUARD_POST:     base_range = {"min_w": 52, "max_w": 76, "min_h": 36, "max_h": 52}
-		Archetype.BRIDGE_SPAN:    base_range = {"min_w": 64, "max_w": 88, "min_h": 36, "max_h": 48}
-		Archetype.STORAGE_VAULT:  base_range = {"min_w": 56, "max_w": 76, "min_h": 38, "max_h": 52}
-		Archetype.RITUAL_CHAMBER: base_range = {"min_w": 48, "max_w": 68, "min_h": 36, "max_h": 48}
-		Archetype.COLLAPSED_HALL: base_range = {"min_w": 52, "max_w": 72, "min_h": 36, "max_h": 48}
-		Archetype.WATCHTOWER:     base_range = {"min_w": 28, "max_w": 42, "min_h": 44, "max_h": 64}
-		Archetype.QUARRY:         base_range = {"min_w": 56, "max_w": 76, "min_h": 36, "max_h": 48}
-		Archetype.SANCTUARY:      base_range = {"min_w": 28, "max_w": 38, "min_h": 20, "max_h": 28}
-		Archetype.BOSS_ARENA:     base_range = {"min_w": 64, "max_w": 92, "min_h": 40, "max_h": 56}
-		_:                        base_range = {"min_w": 52, "max_w": 76, "min_h": 36, "max_h": 52}
+		Archetype.GUARD_POST:     base_range = {"min_w": 120, "max_w": 170, "min_h": 80, "max_h": 120}
+		Archetype.BRIDGE_SPAN:    base_range = {"min_w": 140, "max_w": 200, "min_h": 70, "max_h": 110}
+		Archetype.STORAGE_VAULT:  base_range = {"min_w": 130, "max_w": 180, "min_h": 85, "max_h": 130}
+		Archetype.RITUAL_CHAMBER: base_range = {"min_w": 120, "max_w": 160, "min_h": 80, "max_h": 120}
+		Archetype.COLLAPSED_HALL: base_range = {"min_w": 130, "max_w": 180, "min_h": 80, "max_h": 120}
+		Archetype.WATCHTOWER:     base_range = {"min_w": 60, "max_w": 90, "min_h": 120, "max_h": 180}
+		Archetype.QUARRY:         base_range = {"min_w": 140, "max_w": 190, "min_h": 80, "max_h": 120}
+		Archetype.SANCTUARY:      base_range = {"min_w": 36, "max_w": 48, "min_h": 22, "max_h": 30}
+		Archetype.BOSS_ARENA:     base_range = {"min_w": 150, "max_w": 220, "min_h": 90, "max_h": 140}
+		_:                        base_range = {"min_w": 120, "max_w": 170, "min_h": 80, "max_h": 120}
 
 	if complexity >= 0.0:
 		var cx := clampf(complexity, 0.0, 1.0)
@@ -365,406 +365,289 @@ static func _get_anchor_y_range(portals: Array, available_slots: Array[PortalSlo
 		if a.y > hi: hi = a.y
 	return Vector2i(lo, hi)
 
+# ── Macro-Section Carving Primitives ──────────────────────────────────────────
+# Carves a full-sized chamber (rw x rh) into solid bedrock.
+# Hollows interior with TILE_EMPTY and puts solid TILE_FLOOR on the bottom 2 rows.
+static func _carve_chamber(grid: Array, rx: int, ry: int, rw: int, rh: int, w: int, h: int) -> void:
+	rx = clampi(rx, 2, w - rw - 2)
+	ry = clampi(ry, 2, h - rh - 2)
+	for y in range(ry, ry + rh):
+		for x in range(rx, rx + rw):
+			if y >= 0 and y < h and x >= 0 and x < w:
+				if y >= ry + rh - 2:
+					grid[y][x] = TILE_FLOOR
+				else:
+					grid[y][x] = TILE_EMPTY
+
+# Carves a horizontal corridor through bedrock connecting two X positions at height y.
+static func _carve_tunnel_h(grid: Array, x1: int, x2: int, y: int, tunnel_h: int, w: int, h: int) -> void:
+	var min_x := mini(x1, x2)
+	var max_x := maxi(x1, x2)
+	for x in range(maxi(1, min_x), mini(w - 1, max_x + 1)):
+		for dy in range(tunnel_h):
+			var ty := y + dy
+			if ty >= 0 and ty < h:
+				if dy >= tunnel_h - 2:
+					grid[ty][x] = TILE_FLOOR
+				else:
+					grid[ty][x] = TILE_EMPTY
+
+# Carves a vertical shaft through bedrock connecting two Y positions at column x.
+# Includes step platforms every 3 tiles so the player can jump/ascend vertically.
+static func _carve_tunnel_v(grid: Array, x: int, y1: int, y2: int, tunnel_w: int, w: int, h: int) -> void:
+	var min_y := mini(y1, y2)
+	var max_y := maxi(y1, y2)
+	var step_side := 0
+	for y in range(maxi(1, min_y), mini(h - 1, max_y + 1)):
+		for dx in range(tunnel_w):
+			var tx := x + dx
+			if tx >= 0 and tx < w:
+				grid[y][tx] = TILE_EMPTY
+		if y % 3 == 0 and y < max_y - 2:
+			var px := x if step_side == 0 else x + tunnel_w - 2
+			px = clampi(px, 1, w - 2)
+			grid[y][px] = TILE_PLATFORM
+			if px + 1 < w:
+				grid[y][px + 1] = TILE_PLATFORM
+			step_side = 1 - step_side
+
+# Carves a diagonal stairwell corridor connecting (x1, y1) to (x2, y2).
+static func _carve_stairwell(grid: Array, x1: int, y1: int, x2: int, y2: int, w: int, h: int) -> void:
+	var steps := abs(x2 - x1)
+	if steps == 0:
+		return
+	var dx_sign := 1 if x2 > x1 else -1
+	var dy_sign := 1 if y2 > y1 else -1
+	var y_step := float(abs(y2 - y1)) / float(steps)
+	
+	for i in range(steps + 1):
+		var cx := x1 + i * dx_sign
+		var cy := int(float(y1) + float(i) * y_step * float(dy_sign))
+		for dy in range(-3, 2):
+			var ty := cy + dy
+			if cx >= 0 and cx < w and ty >= 0 and ty < h:
+				if dy >= 0:
+					grid[ty][cx] = TILE_FLOOR
+				else:
+					grid[ty][cx] = TILE_EMPTY
+
 # ── Guard Post ────────────────────────────────────────────────────────────────
+# Macro-Section: 4 full-sized chambers (40-48 x 22-26 tiles) carved from bedrock.
 static func _skeleton_guard_post(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
-	var cx := w / 2
-
-	# Upper lookout platform (y ~ 30% height)
-	var lookout_y := clampi(int(float(h) * 0.3), 3, h - 5)
-	var lookout_w := clampi(int(float(w) / 6.0 * (0.5 + complexity)), 4, 10)
-	var lookout_x := cx - lookout_w / 2
-	for dx in range(lookout_w):
-		_place_off_path(grid, lookout_x + dx, lookout_y, TILE_FLOOR, w, h)
-		_place_off_path(grid, lookout_x + dx, lookout_y + 1, TILE_FLOOR, w, h)
-		# Support columns under the platform
-		if dx == 0 or dx == lookout_w - 1:
-			for ty in range(lookout_y + 2, floor_lo):
-				_place_off_path(grid, lookout_x + dx, ty, TILE_WALL, w, h)
 	
-	# Mid-level patrol bridge connecting left/right walls
-	var bridge_y := lookout_y + clampi(int(float(floor_lo - lookout_y) / 2.0), 3, 6)
-	var gap_x := rng.randi_range(w / 3, w * 2 / 3)
-	for tx in range(1, w - 1):
-		if abs(tx - gap_x) > 2: # 4-5 tile gap
-			_place_off_path(grid, tx, bridge_y, TILE_PLATFORM, w, h)
+	# Chamber 1: Entry Guardhouse (44x24 tiles) at portal anchor height
+	var c1_w := mini(44, w / 3); var c1_h := mini(24, h / 3)
+	var c1_x := 4; var c1_y := clampi(floor_lo - 20, 4, h - 28)
+	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 
-	# 2-tile wide access shaft below lookout
-	var shaft_x := lookout_x + lookout_w / 2 - 1
-	for ty in range(lookout_y + 2, bridge_y):
-		_place_off_path(grid, shaft_x, ty, TILE_EMPTY, w, h)
-		_place_off_path(grid, shaft_x + 1, ty, TILE_EMPTY, w, h)
-		if ty % 3 == 0:
-			_place_off_path(grid, shaft_x, ty, TILE_PLATFORM, w, h)
+	# Chamber 2: Central Patrol Hall (48x26 tiles) in upper-middle height
+	var c2_w := mini(48, w / 3); var c2_h := mini(26, h / 3)
+	var c2_x := clampi(w / 3, c1_x + c1_w + 4, w - c2_w - 4)
+	var c2_y := clampi(h / 3, 4, h - c2_h - 4)
+	_carve_chamber(grid, c2_x, c2_y, c2_w, c2_h, w, h)
 
-	# Lower rubble basement (bottom 25% of room)
-	var basement_y := clampi(int(float(h) * 0.75), floor_lo + 1, h - 2)
-	var num_rubble := clampi(int(float(w) / 8.0 * (0.5 + complexity)), 2, 8)
-	for _i in range(num_rubble):
-		var rx := rng.randi_range(2, w - 4)
-		var rw := rng.randi_range(2, 4)
-		for dx in range(rw):
-			for dy in range(rng.randi_range(1, 2)):
-				if basement_y - dy > floor_lo:
-					_place_off_path(grid, rx + dx, basement_y - dy, TILE_PLATFORM, w, h)
+	# Chamber 3: Upper Lookout Tower (40x22 tiles) at top right
+	var c3_w := mini(40, w / 3); var c3_h := mini(22, h / 3)
+	var c3_x := clampi(w * 2 / 3, c2_x + c2_w + 4, w - c3_w - 4)
+	var c3_y := clampi(4, 4, c2_y)
+	_carve_chamber(grid, c3_x, c3_y, c3_w, c3_h, w, h)
+
+	# Chamber 4: Lower Armory Basement (44x20 tiles) at bottom
+	var c4_w := mini(44, w / 3); var c4_h := mini(20, h / 4)
+	var c4_x := clampi(w / 2 - 20, c1_x + 10, w - c4_w - 4)
+	var c4_y := clampi(h - c4_h - 4, c2_y + 10, h - c4_h - 2)
+	_carve_chamber(grid, c4_x, c4_y, c4_w, c4_h, w, h)
+
+	# Carve connecting tunnels through bedrock
+	_carve_tunnel_h(grid, c1_x + c1_w - 2, c2_x + 4, c1_y + c1_h - 4, 4, w, h)
+	_carve_stairwell(grid, c2_x + c2_w - 4, c2_y + 4, c3_x + 4, c3_y + c3_h - 2, w, h)
+	_carve_tunnel_v(grid, c2_x + 10, c2_y + c2_h - 2, c4_y + 2, 3, w, h)
+	_carve_tunnel_h(grid, c3_x + c3_w - 2, w - 4, c3_y + c3_h - 4, 4, w, h)
 
 # ── Bridge Span ───────────────────────────────────────────────────────────────
+# Macro-Section: Multi-level chasm complex with 4 full-sized chambers.
 static func _skeleton_bridge_span(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 
-	# Upper cable bridge
-	var upper_y := clampi(int(float(h) * 0.25), 3, h - 8)
-	var dash_gap_start := rng.randi_range(w / 3, w / 2)
-	var dash_gap_end := dash_gap_start + rng.randi_range(6, 7)
-	
-	for tx in range(1, w - 1):
-		# Optional dash-gap
-		if rng.randf() < complexity and tx >= dash_gap_start and tx <= dash_gap_end:
-			continue
-		_place_off_path(grid, tx, upper_y, TILE_PLATFORM, w, h)
-		# Railing segments
-		if tx % 4 != 0:
-			_place_off_path(grid, tx, upper_y - 1, TILE_WALL, w, h)
+	# Chamber 1: West Bridge Anchor (44x24 tiles)
+	var c1_w := mini(44, w / 3); var c1_h := mini(24, h / 3)
+	var c1_x := 4; var c1_y := clampi(floor_lo - 20, 4, h - 28)
+	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 
-	# Mid-level secondary bridge (shorter, offset)
-	var mid_y := upper_y + rng.randi_range(5, 7)
-	var mid_start := rng.randi_range(w / 5, w / 3)
-	var mid_w := rng.randi_range(w / 3, w / 2)
-	for tx in range(mid_start, mid_start + mid_w):
-		_place_off_path(grid, tx, mid_y, TILE_PLATFORM, w, h)
+	# Chamber 2: Upper Suspension Bridge Hall (60x24 tiles) spanning top center
+	var c2_w := mini(60, w / 2); var c2_h := mini(24, h / 3)
+	var c2_x := clampi(w / 3, c1_x + c1_w + 4, w - c2_w - 4)
+	var c2_y := clampi(6, 4, h - c2_h - 4)
+	_carve_chamber(grid, c2_x, c2_y, c2_w, c2_h, w, h)
 
-	# Deep support pillars extending from mid-bridges down to the floor
-	var num_pillars := clampi(int(float(w) / 10.0 * (0.5 + complexity)), 1, 4)
-	for _i in range(num_pillars):
-		var px := rng.randi_range(mid_start + 1, mid_start + mid_w - 2)
-		for ty in range(mid_y + 1, floor_lo):
-			_place_off_path(grid, px, ty, TILE_WALL, w, h)
-			_place_off_path(grid, px + 1, ty, TILE_WALL, w, h)
+	# Chamber 3: Secondary Bridge Vault (44x22 tiles)
+	var c3_w := mini(44, w / 3); var c3_h := mini(22, h / 3)
+	var c3_x := clampi(w * 2 / 3, c2_x + c2_w + 4, w - c3_w - 4)
+	var c3_y := clampi(c2_y + 12, c2_y + 6, h - c3_h - 4)
+	_carve_chamber(grid, c3_x, c3_y, c3_w, c3_h, w, h)
 
-	# Lower cavern basin
-	var basin_y := h - 2
-	var num_rubble := clampi(int(float(w) / 6.0 * (0.5 + complexity)), 3, 10)
-	for _i in range(num_rubble):
-		var rx := rng.randi_range(1, w - 3)
-		var ry := basin_y - rng.randi_range(0, 2)
-		if ry > floor_lo:
-			_place_off_path(grid, rx, ry, TILE_PLATFORM, w, h)
+	# Chamber 4: Abyssal Cavern Basin (50x22 tiles) at bottom
+	var c4_w := mini(50, w / 2); var c4_h := mini(22, h / 4)
+	var c4_x := clampi(w / 3, 10, w - c4_w - 4)
+	var c4_y := clampi(h - c4_h - 4, c3_y + 6, h - c4_h - 2)
+	_carve_chamber(grid, c4_x, c4_y, c4_w, c4_h, w, h)
+
+	# Carve connecting tunnels, shafts, and abyssal drops
+	_carve_stairwell(grid, c1_x + c1_w - 4, c1_y + c1_h - 2, c2_x + 4, c2_y + c2_h - 2, w, h)
+	_carve_tunnel_h(grid, c2_x + c2_w - 2, c3_x + 4, c2_y + c2_h - 4, 4, w, h)
+	_carve_tunnel_v(grid, c2_x + c2_w / 2, c2_y + c2_h - 2, c4_y + 2, 3, w, h)
+	_carve_tunnel_h(grid, c3_x + c3_w - 2, w - 4, c3_y + c3_h - 4, 4, w, h)
 
 # ── Sanctuary ─────────────────────────────────────────────────────────────────
+# Macro-Section: Peaceful sanctuary complex with full-sized meditation hall.
 static func _skeleton_sanctuary(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
-	var cx := w / 2
 
-	# Central meditation platform (3x3) slightly raised
-	var plat_x := cx - 1
-	var plat_y := floor_lo - 2
-	for dx in range(3):
-		for dy in range(3):
-			var ty := plat_y + dy
-			if ty < h:
-				_place_off_path(grid, plat_x + dx, ty, TILE_PLATFORM if dy == 0 else TILE_WALL, w, h)
+	# Main Meditation Hall (36x22 tiles)
+	var c1_w := mini(36, w - 6); var c1_h := mini(22, h - 6)
+	var c1_x := 4; var c1_y := clampi(floor_lo - c1_h + 2, 3, h - c1_h - 3)
+	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 
-	# Background pillar column behind the meditation spot
-	for ty in range(2, plat_y):
-		_place_off_path(grid, cx, ty, TILE_WALL, w, h)
-
-	# Two small flanking alcove shelves at different heights
-	var shelf_y1 := plat_y - rng.randi_range(3, 4)
-	var shelf_y2 := plat_y - rng.randi_range(5, 6)
-	for dx in range(2):
-		_place_off_path(grid, plat_x - 4 + dx, shelf_y1, TILE_PLATFORM, w, h)
-		_place_off_path(grid, plat_x + 5 + dx, shelf_y2, TILE_PLATFORM, w, h)
+	# Connecting portal walkway
+	_carve_tunnel_h(grid, c1_x + c1_w - 2, w - 4, c1_y + c1_h - 4, 4, w, h)
+	
+	var c1_x := clampi(w / 2 - 20, 2, w - 42)
+	var c1_y := clampi(floor_lo - 24, 2, h - 26)
+	_carve_chamber(grid, c1_x, c1_y, 40, 24, w, h)
+	
+	var c2_x := clampi(c1_x + 40 + 8, 2, w - 32)
+	var c2_y := clampi(floor_lo - 18, 2, h - 20)
+	_carve_chamber(grid, c2_x, c2_y, 30, 18, w, h)
+	
+	_carve_tunnel_h(grid, c1_x + 40, c2_x, c1_y + 12, 4, w, h)
 
 # ── Storage Vault ─────────────────────────────────────────────────────────────
 static func _skeleton_storage_vault(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
-
-	# 3-tier archive vault
-	var top_y := clampi(int(float(h) * 0.25), 3, h - 8)
-	var mid_y := clampi(int(float(h) * 0.5), top_y + 4, h - 4)
+	var cx := w / 2
+	var cy := h / 2
 	
-	# Top tier: high shelf/ledge row
-	for tx in range(2, w - 2):
-		if tx % 5 != 0:
-			_place_off_path(grid, tx, top_y, TILE_PLATFORM, w, h)
-
-	# Top tier: ceiling-mounted pillars descending to high shelf
-	var num_pillars := clampi(int(float(w) / 6.0 * (0.5 + complexity)), 3, 8)
-	for _i in range(num_pillars):
-		var px := rng.randi_range(3, w - 4)
-		for ty in range(2, top_y):
-			_place_off_path(grid, px, ty, TILE_WALL, w, h)
-
-	# Mid tier: main walkway with wall alcoves and hidden pockets between pillars
-	for tx in range(1, w - 1):
-		if tx % 7 != 0:
-			_place_off_path(grid, tx, mid_y, TILE_PLATFORM, w, h)
-			# Wall alcoves
-			if tx % 3 == 0:
-				_place_off_path(grid, tx, mid_y - 1, TILE_WALL, w, h)
-
-	# Vertical connecting shaft between tiers (2-3 tiles wide)
-	var shaft_w := rng.randi_range(2, 3)
-	var shaft_x := rng.randi_range(w / 4, w * 3 / 4)
-	for ty in range(top_y, floor_lo):
-		for dx in range(shaft_w):
-			_place_off_path(grid, shaft_x + dx, ty, TILE_EMPTY, w, h)
-		# Step platforms every 3-4 tiles
-		if ty % 4 == 0:
-			_place_off_path(grid, shaft_x, ty, TILE_PLATFORM, w, h)
-
-	# Lower tier: deep storage basement accessed via shaft
-	var base_y := h - 2
-	for tx in range(shaft_x - 4, shaft_x + shaft_w + 4):
-		if tx > 0 and tx < w and base_y > floor_lo:
-			_place_off_path(grid, tx, base_y, TILE_PLATFORM, w, h)
+	var c1_x := clampi(cx - 44 - 6, 2, w - 46)
+	var c1_y := clampi(cy - 24 - 4, 2, h - 26)
+	_carve_chamber(grid, c1_x, c1_y, 44, 24, w, h)
+	
+	var c2_x := clampi(cx + 6, 2, w - 46)
+	var c2_y := c1_y
+	_carve_chamber(grid, c2_x, c2_y, 44, 24, w, h)
+	
+	var c3_x := c1_x
+	var c3_y := clampi(cy + 4, 2, h - 26)
+	_carve_chamber(grid, c3_x, c3_y, 44, 24, w, h)
+	
+	var c4_x := c2_x
+	var c4_y := c3_y
+	_carve_chamber(grid, c4_x, c4_y, 44, 24, w, h)
+	
+	_carve_tunnel_h(grid, c1_x + 44, c2_x, c1_y + 12, 4, w, h)
+	_carve_tunnel_h(grid, c3_x + 44, c4_x, c3_y + 12, 4, w, h)
+	
+	_carve_tunnel_v(grid, c1_x + 22, c1_y + 24, c3_y, 3, w, h)
+	_carve_tunnel_v(grid, c2_x + 22, c2_y + 24, c4_y, 3, w, h)
+	
+	var s_x := clampi(c4_x + 44 + 2, 2, w - 12)
+	var s_y := clampi(c4_y + 4, 2, h - 12)
+	_carve_chamber(grid, s_x, s_y, 10, 10, w, h)
 
 # ── Collapsed Hall ────────────────────────────────────────────────────────────
 static func _skeleton_collapsed_hall(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
-
-	# Multiple broken concrete slabs at staggered heights creating a zig-zag climbing path
-	var num_slabs := clampi(int(float(h) / 5.0 * (0.5 + complexity)), 3, 6)
-	var current_y := floor_lo - 2
-	var current_x := w / 4
-	var zig := 1
-	for _i in range(num_slabs):
-		var slab_w := rng.randi_range(4, 7)
-		for dx in range(slab_w):
-			var tx := current_x + dx
-			if tx > 0 and tx < w:
-				_place_off_path(grid, tx, current_y, TILE_PLATFORM, w, h)
-		current_y -= rng.randi_range(3, 4)
-		current_x += zig * rng.randi_range(3, 5)
-		zig *= -1
-		current_x = clampi(current_x, 2, w - 8)
-
-	# Large rubble pile blocking direct path
-	var pile_x := w / 2 - 3
-	var pile_w := 6
-	for dx in range(pile_w):
-		for dy in range(rng.randi_range(2, 4)):
-			_place_off_path(grid, pile_x + dx, floor_lo - dy, TILE_WALL, w, h)
-
-	# Fallen pillars creating diagonal bridge segments
-	var fall_x := w / 3
-	var fall_y := floor_lo - 5
-	for step in range(5):
-		var tx := fall_x + step
-		var ty := fall_y + step
-		if tx < w and ty < h:
-			_place_off_path(grid, tx, ty, TILE_PLATFORM, w, h)
-
-	# Upper ledge with debris
-	var ledge_y := current_y + 4
-	var ledge_w := 5
-	for dx in range(ledge_w):
-		var tx := 1 + dx if zig == 1 else w - 2 - dx
-		_place_off_path(grid, tx, ledge_y, TILE_FLOOR, w, h)
-		_place_off_path(grid, tx, ledge_y - 1, TILE_PLATFORM, w, h)
-
-	# Lower pit area beneath the slabs
-	var pit_y := floor_lo + 2
-	if pit_y < h:
-		for tx in range(w / 3, w * 2 / 3):
-			_place_off_path(grid, tx, pit_y, TILE_EMPTY, w, h)
+	
+	var c1_x := clampi(w / 4 - 24, 2, w - 50)
+	var c1_y := clampi(h / 6, 2, h - 28)
+	_carve_chamber(grid, c1_x, c1_y, 48, 26, w, h)
+	
+	var c2_x := clampi(w * 3 / 4 - 24, 2, w - 50)
+	var c2_y := clampi(h / 2 - 13, 2, h - 28)
+	_carve_chamber(grid, c2_x, c2_y, 48, 26, w, h)
+	
+	var c3_x := clampi(w / 4 - 24, 2, w - 50)
+	var c3_y := clampi(h * 5 / 6 - 26, 2, h - 28)
+	_carve_chamber(grid, c3_x, c3_y, 48, 26, w, h)
+	
+	_carve_stairwell(grid, c1_x + 48, c1_y + 13, c2_x, c2_y + 13, w, h)
+	_carve_stairwell(grid, c2_x, c2_y + 13, c3_x + 48, c3_y + 13, w, h)
 
 # ── Ritual Chamber ────────────────────────────────────────────────────────────
 static func _skeleton_ritual_chamber(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
-	var cx := w / 2
-
-	# Massive central raised dais
-	var dais_w := clampi(int(float(w) / 4.0 * (0.5 + complexity)), 6, 12)
-	var dais_h := clampi(int(float(h) / 5.0 * (0.5 + complexity)), 3, 6)
-	var dais_x := cx - dais_w / 2
-	var dais_y := floor_lo - dais_h
-	for dx in range(dais_w):
-		for dy in range(dais_h):
-			var tx := dais_x + dx
-			var ty := dais_y + dy
-			if ty < h:
-				_place_off_path(grid, tx, ty, TILE_FLOOR if dy < 2 else TILE_WALL, w, h)
-
-	# Flanking staircases leading up to the dais
-	var stair_w := 3
-	for step in range(dais_h):
-		var ty := dais_y + step
-		# Left stair
-		for dx in range(stair_w):
-			var tx_l := dais_x - 1 - step - dx
-			if tx_l > 0:
-				_place_off_path(grid, tx_l, ty, TILE_PLATFORM, w, h)
-		# Right stair
-		for dx in range(stair_w):
-			var tx_r := dais_x + dais_w + step + dx
-			if tx_r < w - 1:
-				_place_off_path(grid, tx_r, ty, TILE_PLATFORM, w, h)
-
-	# Upper observation balconies on left/right walls
-	var balc_y := dais_y - rng.randi_range(4, 5)
-	var balc_w := clampi(w / 8, 3, 6)
-	for dx in range(balc_w):
-		_place_off_path(grid, 1 + dx, balc_y, TILE_FLOOR, w, h)
-		_place_off_path(grid, w - 2 - dx, balc_y, TILE_FLOOR, w, h)
-
-	# Lower ritual pit beneath the dais (accessed by drop shaft)
-	var pit_y := floor_lo + 2
-	if pit_y < h - 1:
-		for tx in range(dais_x + 2, dais_x + dais_w - 2):
-			_place_off_path(grid, tx, pit_y, TILE_EMPTY, w, h)
-			_place_off_path(grid, tx, pit_y + 1, TILE_WALL, w, h)
-		# Drop shaft on one side
-		var shaft_x := dais_x - 3
-		for ty in range(floor_lo, pit_y + 1):
-			_place_off_path(grid, shaft_x, ty, TILE_EMPTY, w, h)
-			_place_off_path(grid, shaft_x + 1, ty, TILE_EMPTY, w, h)
-
-	# Corner platforms at multiple heights
-	for i in range(2):
-		var cy := rng.randi_range(3, floor_lo - 2)
-		_place_off_path(grid, 2, cy, TILE_PLATFORM, w, h)
-		_place_off_path(grid, w - 3, cy, TILE_PLATFORM, w, h)
+	
+	var c1_x := 4
+	var c1_y := clampi(floor_lo - 24, 2, h - 26)
+	_carve_chamber(grid, c1_x, c1_y, 40, 24, w, h)
+	
+	var c2_x := clampi(w / 2 - 30, 2, w - 62)
+	var c2_y := clampi(h / 2 - 16, 2, h - 34)
+	_carve_chamber(grid, c2_x, c2_y, 60, 32, w, h)
+	
+	var c3_x := clampi(w / 2 - 22, 2, w - 46)
+	var c3_y := clampi(h / 4 - 10, 2, h - 22)
+	_carve_chamber(grid, c3_x, c3_y, 44, 20, w, h)
+	
+	var c4_x := clampi(w / 2 - 24, 2, w - 50)
+	var c4_y := clampi(h * 3 / 4, 2, h - 24)
+	_carve_chamber(grid, c4_x, c4_y, 48, 22, w, h)
+	
+	_carve_tunnel_h(grid, c1_x + 40, c2_x, c1_y + 12, 4, w, h)
+	_carve_tunnel_v(grid, c3_x + 22, c3_y + 20, c2_y, 3, w, h)
+	_carve_tunnel_v(grid, c2_x + 30, c2_y + 32, c4_y, 3, w, h)
 
 # ── Watchtower ────────────────────────────────────────────────────────────────
 static func _skeleton_watchtower(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
-
-	# 4 distinct floor tiers with alternating left/right platforms
-	var tier_spacing := rng.randi_range(3, 4)
-	var tier_y := floor_lo - tier_spacing
-	var side := 0
-
+	var cx := w / 2
+	var tier_h := 22
+	var gap := clampi((h - 4 * tier_h) / 5, 2, 20)
 	for i in range(4):
-		var tier_w := rng.randi_range(w / 3, w * 2 / 3)
-		# Optional dash-gap between non-adjacent tiers
-		var gap_x := -1
-		if i % 2 == 1 and rng.randf() < complexity:
-			gap_x = rng.randi_range(tier_w / 3, tier_w * 2 / 3)
-		
-		for dx in range(tier_w):
-			if dx == gap_x or dx == gap_x + 1:
-				continue
-			var tx := 1 + dx if side == 0 else w - 2 - dx
-			if tx > 0 and tx < w - 1:
-				_place_off_path(grid, tx, tier_y, TILE_PLATFORM, w, h)
-		
-		# Window gaps in walls at each tier
-		var wx := 0 if side == 0 else w - 1
-		for wy in range(tier_y - 2, tier_y):
-			if wy > 0 and wy < h:
-				_place_off_path(grid, wx, wy, TILE_EMPTY, w, h)
-
-		side = 1 - side
-		tier_y -= tier_spacing
-		if tier_y < 4:
-			break
-
-	# Top observation platform spanning the full width
-	var top_y := maxi(3, tier_y)
-	for tx in range(1, w - 1):
-		_place_off_path(grid, tx, top_y, TILE_FLOOR, w, h)
-		_place_off_path(grid, tx, top_y + 1, TILE_FLOOR, w, h)
+		var cy := gap + i * (tier_h + gap)
+		_carve_chamber(grid, cx - 22, cy, 44, tier_h, w, h)
+		if i < 3:
+			_carve_tunnel_v(grid, cx - 2, cy + tier_h, cy + tier_h + gap, 4, w, h)
 
 # ── Quarry ────────────────────────────────────────────────────────────────────
 static func _skeleton_quarry(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
-
-	# Stepped descent: 3-4 step-down platforms to a deep pit floor
-	var num_steps := rng.randi_range(3, 4)
-	var step_w := clampi(w / num_steps, 4, 10)
-	var pit_y := floor_lo
-	var step_x := 1
-	for i in range(num_steps):
-		for dx in range(step_w):
-			var tx := step_x + dx
-			if tx < w - 1:
-				_place_off_path(grid, tx, pit_y, TILE_PLATFORM, w, h)
-				# Waist-high cover walls
-				if rng.randf() < 0.3:
-					_place_off_path(grid, tx, pit_y - 1, TILE_WALL, w, h)
-		step_x += step_w
-		pit_y += rng.randi_range(2, 3)
-
-	# Excavation walls: thick wall segments at the bottom creating a pit basin
-	if pit_y < h:
-		for tx in range(1, w - 1):
-			for ty in range(pit_y, h - 1):
-				_place_off_path(grid, tx, ty, TILE_WALL, w, h)
-
-	# Upper crane beams (thin horizontal wall segments near ceiling)
-	var crane_y := clampi(4, 3, h - 6)
-	var crane_w := clampi(int(float(w) * 0.6 * (0.5 + complexity)), 5, w - 2)
-	var crane_x := rng.randi_range(1, w - crane_w - 1)
-	for dx in range(crane_w):
-		_place_off_path(grid, crane_x + dx, crane_y, TILE_PLATFORM, w, h)
-
-	# Vein detail platforms on walls
-	var vein_x := rng.randi_range(w / 4, w * 3 / 4)
-	var vein_y := rng.randi_range(crane_y + 2, floor_lo - 4)
-	for step in range(4):
-		_place_off_path(grid, vein_x + step, vein_y + step, TILE_PLATFORM, w, h)
+	
+	var step_w := 48
+	var step_h := 24
+	var start_x := clampi(w / 6, 2, w - 150)
+	var start_y := clampi(h / 6, 2, h - 100)
+	for i in range(3):
+		var cx := start_x + i * 20
+		var cy := start_y + i * 20
+		_carve_chamber(grid, cx, cy, step_w, step_h, w, h)
+		if i < 2:
+			_carve_stairwell(grid, cx + step_w, cy + step_h - 4, cx + step_w + 10, cy + 20 + step_h / 2, w, h)
 
 # ── Boss Arena ─────────────────────────────────────────────────────────────────
 static func _skeleton_boss_arena(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
-	var cx := w / 2
-
-	# Wide open central combat floor (clear zone)
-	var clear_w := clampi(int(float(w) * 0.8), 10, w - 4)
-	var clear_x := cx - clear_w / 2
-	for ty in range(3, floor_lo):
-		for tx in range(clear_x, clear_x + clear_w):
-			if ty > 0 and ty < h and tx > 0 and tx < w:
-				if grid[ty][tx] != TILE_FLOOR:
-					grid[ty][tx] = TILE_EMPTY
-
-	# Upper spectator balconies on left and right walls at 2 height levels
-	var balc_w := clampi(clear_x, 2, 6)
-	for i in range(2):
-		var balc_y := floor_lo - 4 - (i * 4)
-		if balc_y > 2:
-			for dx in range(balc_w):
-				_place_off_path(grid, 1 + dx, balc_y, TILE_PLATFORM, w, h)
-				_place_off_path(grid, w - 2 - dx, balc_y, TILE_PLATFORM, w, h)
-
-	# Pillar clusters in the arena that break sightlines
-	var num_clusters := clampi(int(float(w) / 10.0 * (0.5 + complexity)), 2, 4)
-	for _i in range(num_clusters):
-		var px := rng.randi_range(clear_x + 2, clear_x + clear_w - 4)
-		var py := floor_lo - rng.randi_range(1, 3)
-		for dy in range(rng.randi_range(2, 4)):
-			if py - dy > 2:
-				_place_off_path(grid, px, py - dy, TILE_WALL, w, h)
-				_place_off_path(grid, px + 1, py - dy, TILE_WALL, w, h)
-
-	# Boss spawn platform at the top center
-	var spawn_y := 4
-	var spawn_w := clampi(w / 6, 4, 8)
-	var spawn_x := cx - spawn_w / 2
-	for dx in range(spawn_w):
-		_place_off_path(grid, spawn_x + dx, spawn_y, TILE_FLOOR, w, h)
-		_place_off_path(grid, spawn_x + dx, spawn_y + 1, TILE_FLOOR, w, h)
-
-	# Lower pit traps (empty tiles at floor level near edges)
-	var pit_w := 3
-	for dx in range(pit_w):
-		_place_off_path(grid, clear_x + dx, floor_lo, TILE_EMPTY, w, h)
-		_place_off_path(grid, clear_x + clear_w - 1 - dx, floor_lo, TILE_EMPTY, w, h)
-
-	# Perimeter ledges scaled by room height
-	var ledge_y := floor_lo + 2
-	if ledge_y < h - 1:
-		for dx in range(balc_w + 2):
-			_place_off_path(grid, 1 + dx, ledge_y, TILE_PLATFORM, w, h)
-			_place_off_path(grid, w - 2 - dx, ledge_y, TILE_PLATFORM, w, h)
-
+	
+	var c1_x := 4
+	var c1_y := clampi(floor_lo - 24, 2, h - 26)
+	_carve_chamber(grid, c1_x, c1_y, 44, 24, w, h)
+	
+	var c2_x := clampi(w / 2 - 35, 2, w - 72)
+	var c2_y := clampi(h / 2 - 20, 2, h - 42)
+	_carve_chamber(grid, c2_x, c2_y, 70, 40, w, h)
+	
+	var c3_x := clampi(w - 44, 2, w - 42)
+	var c3_y := clampi(h / 2 - 9, 2, h - 20)
+	_carve_chamber(grid, c3_x, c3_y, 40, 18, w, h)
+	
+	_carve_tunnel_h(grid, c1_x + 44, c2_x, c1_y + 12, 4, w, h)
+	_carve_tunnel_h(grid, c2_x + 70, c3_x, c3_y + 9, 4, w, h)
