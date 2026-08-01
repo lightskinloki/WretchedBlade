@@ -133,24 +133,38 @@ Open the project in Godot 4 (`project.godot` at `C:\WretchedBlade`), ensure `Gam
 ## Current Build State
 
 ### Implemented
-- Combat system: 3-hit combo with orbital blade arcs, input buffering, auto-lunge
-- Enemies: Nullman (proximity detection, core-glow telegraph, pulse radial damage, counter/stun), RivalBlade (dual-wield, two-layer AI: priority decision engine + per-fight learning, dodge/counter/punish/pressure/pace footsies, feint, recovery traps, adaptive combo bias)
-- Lock-on system: `LockOn` autoload singleton, Tab to toggle nearest enemy, facing override when locked
-- Lock-on reticle: diamond targeting ring with pulse animation, follows locked target
-- World generation: Procedural rooms (floor, platforms, nullstone, abyss pits), linear room-to-room transitions
-- Systems: Essence currency, checkpoints, lost essence orbs, hitstop (real-time clock), counter system, death/respawn
-- Blade visual states: damage stages, shatter threshold
-- Combo counter HUD with milestone colors
-- Per-attack windup fractions (Slam 0.35, Uppercut 0.0)
-- Nullman shard visuals: procedural noise-driven jagged texture with per-seed personality, missing-chunk mechanic, fracture-surface bottom
-- Nullman pulse glow: soft white circle via PixelRenderer ImageTexture pipeline, tweened scale+alpha
-- RivalBlade per-blade hitboxes: hitboxes follow blade sprites as children, per-combo-hit enable/disable
-- Velocity spike detector: prints physics stacking collisions from move_and_slide for debugging
-- Damage-source logging: player take_damage prints caller file/line/function via get_stack()
-- NaN safety: safe_margin 1.0px on CharacterBody2D + post-move_and_slide sanitize
-- RivalBlade counter deflect system: absorbs hits during counter, ripostes 10 dmg to player
-- RivalBlade learning system: feint, recovery traps, dodge-direction combo bias, aggression-adaptive pressure_mod
-- Named constants extracted: COMBO_WINDOW, LUNGE_RANGE, COUNTER_RANGE, COUNTER_DAMAGE, layer masks
+- **Full-Scale Macro-Section Engine**: Sprawling Metroidvania-scale macro-sections ($120\text{--}240 \times 80\text{--}160$ tiles, ~2000–3800px wide) carved out of solid bedrock (`TILE_WALL`).
+- **Full-Sized Carved Chambers**: Each sub-chamber carved into the bedrock is a full-sized room ($40\text{--}60 \times 20\text{--}30$ tiles), connected by carved horizontal corridors, diagonal stairwells, and vertical ascension shafts.
+- **All 9 Multi-Chamber Archetypes**:
+  - *Guard Post*: 4 full-sized halls (Entry Guardhouse → Central Patrol Hall → Upper Lookout & Lower Armory Basement).
+  - *Bridge Span*: West Bridge Anchor → Upper Suspension Bridge Hall ($60 \times 24$) → Secondary Vault → Abyssal Cavern Basin.
+  - *Storage Vault*: 4 full-sized storage halls in a $2 \times 2$ grid with elevator shafts and a secret archive pocket ('S').
+  - *Collapsed Hall*: 3 full-sized staggered hall chambers connected by diagonal stairwell tunnels.
+  - *Ritual Chamber*: Entry Hall → Monumental Central Dais Hall ($60 \times 32$) → Upper Balcony & Lower Ritual Pit.
+  - *Watchtower*: 4 full-sized tower decks stacked vertically in a $70 \times 140$ vertical tower canvas.
+  - *Quarry*: 3 full-sized excavation pits in a stepped descent through bedrock.
+  - *Sanctuary*: Peaceful meditation hall ($36 \times 22$) with connecting portal walkway.
+  - *Boss Arena*: Pre-Boss Staging Hall → Colossal $70 \times 40$ Arena → Upper Spectator Balcony.
+- **Dash-Aware BFS & Auto-Repair**: Reachability solver tests standard jump (4v/5h) and Dash-jump (8h), auto-carving vertical access shafts if any sub-chamber is isolated.
+- **Height-Band Portal Pairing**: Connects entry/exit portals at compatible height bands (`ground`, `mid`, `high`) for smooth transitions.
+- **Ashen Sanctuary (Hub Safe Zone)**: Fully procedural hub environment (`CampsiteEnvironmentGenerator.gd`, `CampsiteHub.gd`) featuring 6 stations (Hearth, Anvil, Archives, Tuning Altar, Essence Weaver, Gate), multi-row ground, LightOccluder2D lighting, and real-time parallax backdrop movement.
+- **Combat system**: 3-hit combo with orbital blade arcs, input buffering, auto-lunge
+- **Enemies**: Nullman (proximity detection, core-glow telegraph, pulse radial damage, counter/stun), RivalBlade (dual-wield, two-layer AI: priority decision engine + per-fight learning, dodge/counter/punish/pressure/pace footsies, feint, recovery traps, adaptive combo bias)
+- **Lock-on system**: `LockOn` autoload singleton, Tab to toggle nearest enemy, facing override when locked
+- **Lock-on reticle**: diamond targeting ring with pulse animation, follows locked target
+- **World generation**: Procedural macro-sections, graph-based dungeon runs (`DungeonGenerator`, `DungeonGraph`), two-pass rendering
+- **Systems**: Essence currency, checkpoints, lost essence orbs, hitstop (real-time clock), counter system, death/respawn
+- **Blade visual states**: damage stages, shatter threshold
+- **Combo counter HUD** with milestone colors
+- **Nullman shard visuals**: procedural noise-driven jagged texture with per-seed personality, missing-chunk mechanic, fracture-surface bottom
+- **Nullman pulse glow**: soft white circle via PixelRenderer ImageTexture pipeline, tweened scale+alpha
+- **RivalBlade per-blade hitboxes**: hitboxes follow blade sprites as children, per-combo-hit enable/disable
+- **Velocity spike detector**: prints physics stacking collisions from move_and_slide for debugging
+- **Damage-source logging**: player take_damage prints caller file/line/function via get_stack()
+- **NaN safety**: safe_margin 1.0px on CharacterBody2D + post-move_and_slide sanitize
+- **RivalBlade counter deflect system**: absorbs hits during counter, ripostes 10 dmg to player
+- **RivalBlade learning system**: feint, recovery traps, dodge-direction combo bias, aggression-adaptive pressure_mod
+- **Named constants extracted**: COMBO_WINDOW, LUNGE_RANGE, COUNTER_RANGE, COUNTER_DAMAGE, layer masks
 
 ### In Development
 - Overworld map hub screen
