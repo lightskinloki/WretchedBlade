@@ -647,7 +647,7 @@ static func _skeleton_watchtower(grid: Array, rng: RandomNumberGenerator, w: int
 		# Optional dash-gap between non-adjacent tiers
 		var gap_x := -1
 		if i % 2 == 1 and rng.randf() < complexity:
-			gap_x := rng.randi_range(tier_w / 3, tier_w * 2 / 3)
+			gap_x = rng.randi_range(tier_w / 3, tier_w * 2 / 3)
 		
 		for dx in range(tier_w):
 			if dx == gap_x or dx == gap_x + 1:
