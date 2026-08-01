@@ -17,8 +17,8 @@ class_name HexBreakableTile
 const TILE_SIZE := 16
 const CELL_COLS := 4
 const CELL_ROWS := 4
-const CELL_PX_W := TILE_SIZE / CELL_COLS   # 4 pixels wide per cell
-const CELL_PX_H := TILE_SIZE / CELL_ROWS   # 4 pixels tall per cell
+const CELL_PX_W: int = 4   # TILE_SIZE (16) / CELL_COLS (4)
+const CELL_PX_H: int = 4   # TILE_SIZE (16) / CELL_ROWS (4)
 
 # Hex energy tint colour for particle blending
 const HEX_TINT := Color(0.35, 0.05, 0.60, 1.0)
