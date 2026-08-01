@@ -91,79 +91,94 @@ func setup(source_image: Image) -> void:
 			var ox := (cx * CELL_PX_W + CELL_PX_W * 0.5) - TILE_SIZE * 0.5
 			var oy := (cy * CELL_PX_H + CELL_PX_H * 0.5) - TILE_SIZE * 0.5
 			shape_node.position = Vector2(ox, oy)
-			add_child(shape_node)
-			cell_row[cx] = shape_node
 
-		_cell_alive[cy] = alive_row
-		_cells[cy]      = cell_row
+func _create_cell_shapes() -> void:
+	_cells.clear()
+	for cy in range(CELL_ROWS):
+		var row: Array = []
+		for cx in range(CELL_COLS):
+			var shape := CollisionShape2D.new()
+			var rect  := RectangleShape2D.new()
+			rect.size  = Vector2(float(CELL_PX_W), float(CELL_PX_H))
+			shape.shape = rect
+			# Local offset from center of 16x16 tile
+			shape.position = Vector2(
+				(cx + 0.5) * CELL_PX_W - TILE_SIZE * 0.5,
+				(cy + 0.5) * CELL_PX_H - TILE_SIZE * 0.5
+			)
+			add_child(shape)
+			row.append(shape)
+		_cells.append(row)
 
-	# Register in group so hex abilities can query nearby tiles
-	add_to_group("hex_breakable")
 
-
-# ── Public damage API ─────────────────────────────────────────────────────────
-func take_hex_damage(global_impact: Vector2, pattern: Dictionary) -> void:
-	if _image == null:
-		return
-
-	# Convert global impact to pixel-space coordinates (0–15)
+# ── Damage API ────────────────────────────────────────────────────────────────
+# Applies a shape pattern centered at global_impact.
+func apply_hex_damage(global_impact: Vector2, pattern: Dictionary) -> void:
+	# Impact position relative to top-left of this tile
 	var lp         := to_local(global_impact)
 	var px_center  := Vector2i(
 		clampi(int(lp.x + TILE_SIZE * 0.5), 0, TILE_SIZE - 1),
 		clampi(int(lp.y + TILE_SIZE * 0.5), 0, TILE_SIZE - 1)
 	)
 
-	var destroyed: Array[Vector2i] = []
+	var destroyed_pixels: Array[Vector2i] = []
 	match pattern.get("type", "circle"):
 		"circle":
-			destroyed = _apply_circle(px_center, float(pattern.get("radius", 4.0)))
+			destroyed_pixels = _apply_circle(px_center, float(pattern.get("radius", 4.0)))
 		"line":
 			var dir: Vector2 = pattern.get("direction", Vector2.RIGHT)
-			destroyed = _apply_line(px_center, dir.normalized(), float(pattern.get("half_width", 1.5)))
+			destroyed_pixels = _apply_line(px_center, dir.normalized(), float(pattern.get("half_width", 1.5)))
 
-	if not destroyed.is_empty():
-		_destroy_pixels(destroyed, global_impact)
+	if not destroyed_pixels.is_empty():
+		_destroy_pixels(destroyed_pixels, global_impact)
 
 
 # ── Pattern calculators ───────────────────────────────────────────────────────
 func _apply_circle(center: Vector2i, radius: float) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
-	for py in range(TILE_SIZE):
-		for px in range(TILE_SIZE):
-			if not _pixel_alive[py][px]:
-				continue
-			var dx := float(px - center.x)
-			var dy := float(py - center.y)
-			if dx * dx + dy * dy <= radius * radius:
-				result.append(Vector2i(px, py))
+	var r_sq   := radius * radius
+	var r_int  := int(ceil(radius))
+	for dy in range(-r_int, r_int + 1):
+		for dx in range(-r_int, r_int + 1):
+			if float(dx * dx + dy * dy) <= r_sq:
+				var px := center.x + dx
+				var py := center.y + dy
+				if px >= 0 and px < TILE_SIZE and py >= 0 and py < TILE_SIZE:
+					result.append(Vector2i(px, py))
 	return result
 
 
-func _apply_line(origin: Vector2i, dir: Vector2, half_w: float) -> Array[Vector2i]:
+func _apply_line(center: Vector2i, dir: Vector2, half_width: float) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
-	for py in range(TILE_SIZE):
-		for px in range(TILE_SIZE):
-			if not _pixel_alive[py][px]:
-				continue
-			# Perpendicular distance from pixel to the line through origin along dir
-			var offset := Vector2(px - origin.x, py - origin.y)
-			var perp   := absf(offset.x * dir.y - offset.y * dir.x)
-			if perp <= half_w:
-				result.append(Vector2i(px, py))
+	var perp   := Vector2(-dir.y, dir.x)
+	var search := int(ceil(half_width)) + 1
+	for dy in range(-search, search + 1):
+		for dx in range(-search, search + 1):
+			var pt   := Vector2(float(dx), float(dy))
+			var dist := absf(pt.dot(perp))
+			if dist <= half_width:
+				var px := center.x + dx
+				var py := center.y + dy
+				if px >= 0 and px < TILE_SIZE and py >= 0 and py < TILE_SIZE:
+					result.append(Vector2i(px, py))
 	return result
 
 
-# ── Pixel destruction ─────────────────────────────────────────────────────────
+# ── Pixel removal + Shard particle spawner ────────────────────────────────────
 func _destroy_pixels(pixels: Array[Vector2i], global_impact: Vector2) -> void:
 	for p in pixels:
 		var px: int = p.x
 		var py: int = p.y
+		if not _pixel_alive[py][px]:
+			continue
+
+		# Mark dead in logic & image
 		_pixel_alive[py][px] = false
 		_image.set_pixel(px, py, Color(0.0, 0.0, 0.0, 0.0))
 
 		# Update cell alive count; disable collision when cell is empty
-		var cx: int = px / CELL_PX_W
-		var cy: int = py / CELL_PX_H
+		var cx: int = int(float(px) / float(CELL_PX_W))
+		var cy: int = int(float(py) / float(CELL_PX_H))
 		_cell_alive[cy][cx] -= 1
 		if _cell_alive[cy][cx] <= 0:
 			_cell_alive[cy][cx] = 0
