@@ -437,9 +437,9 @@ static func _skeleton_guard_post(grid: Array, rng: RandomNumberGenerator, w: int
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 	
-	# Chamber 1: Entry Guardhouse (44x24 tiles) at portal anchor height
+	# Chamber 1: Entry Guardhouse (44x24 tiles) aligned with portal floor anchor
 	var c1_w := mini(44, w / 3); var c1_h := mini(24, h / 3)
-	var c1_x := 4; var c1_y := clampi(floor_lo - 20, 4, h - 28)
+	var c1_x := 4; var c1_y := clampi(floor_lo - c1_h + 2, 2, h - c1_h - 2)
 	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 
 	# Chamber 2: Central Patrol Hall (48x26 tiles) in upper-middle height
@@ -472,9 +472,9 @@ static func _skeleton_bridge_span(grid: Array, rng: RandomNumberGenerator, w: in
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 
-	# Chamber 1: West Bridge Anchor (44x24 tiles)
+	# Chamber 1: West Bridge Anchor (44x24 tiles) aligned with portal floor anchor
 	var c1_w := mini(44, w / 3); var c1_h := mini(24, h / 3)
-	var c1_x := 4; var c1_y := clampi(floor_lo - 20, 4, h - 28)
+	var c1_x := 4; var c1_y := clampi(floor_lo - c1_h + 2, 2, h - c1_h - 2)
 	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 
 	# Chamber 2: Upper Suspension Bridge Hall (60x24 tiles) spanning top center
@@ -507,9 +507,9 @@ static func _skeleton_sanctuary(grid: Array, rng: RandomNumberGenerator, w: int,
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 
-	# Main Meditation Hall (36x22 tiles)
+	# Main Meditation Hall (36x22 tiles) aligned with portal floor anchor
 	var c1_w := mini(36, w - 6); var c1_h := mini(22, h - 6)
-	var c1_x := 4; var c1_y := clampi(floor_lo - c1_h + 2, 3, h - c1_h - 3)
+	var c1_x := 4; var c1_y := clampi(floor_lo - c1_h + 2, 2, h - c1_h - 2)
 	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 
 	# Flanking Reflection Alcove (30x18 tiles)
@@ -581,9 +581,10 @@ static func _skeleton_ritual_chamber(grid: Array, rng: RandomNumberGenerator, w:
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 	
+	var c1_w := 40; var c1_h := 24
 	var c1_x := 4
-	var c1_y := clampi(floor_lo - 24, 2, h - 26)
-	_carve_chamber(grid, c1_x, c1_y, 40, 24, w, h)
+	var c1_y := clampi(floor_lo - c1_h + 2, 2, h - c1_h - 2)
+	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 	
 	var c2_x := clampi(w / 2 - 30, 2, w - 62)
 	var c2_y := clampi(h / 2 - 16, 2, h - 34)
@@ -597,7 +598,7 @@ static func _skeleton_ritual_chamber(grid: Array, rng: RandomNumberGenerator, w:
 	var c4_y := clampi(h * 3 / 4, 2, h - 24)
 	_carve_chamber(grid, c4_x, c4_y, 48, 22, w, h)
 	
-	_carve_tunnel_h(grid, c1_x + 40, c2_x, c1_y + 12, 4, w, h)
+	_carve_tunnel_h(grid, c1_x + c1_w, c2_x, c1_y + c1_h - 4, 4, w, h)
 	_carve_tunnel_v(grid, c3_x + 22, c3_y + 20, c2_y, 3, w, h)
 	_carve_tunnel_v(grid, c2_x + 30, c2_y + 32, c4_y, 3, w, h)
 
@@ -635,9 +636,10 @@ static func _skeleton_boss_arena(grid: Array, rng: RandomNumberGenerator, w: int
 	var y_range := _get_anchor_y_range(portals, available_slots, w, h)
 	var floor_lo := y_range.x
 	
+	var c1_w := 44; var c1_h := 24
 	var c1_x := 4
-	var c1_y := clampi(floor_lo - 24, 2, h - 26)
-	_carve_chamber(grid, c1_x, c1_y, 44, 24, w, h)
+	var c1_y := clampi(floor_lo - c1_h + 2, 2, h - c1_h - 2)
+	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 	
 	var c2_x := clampi(w / 2 - 35, 2, w - 72)
 	var c2_y := clampi(h / 2 - 20, 2, h - 42)
