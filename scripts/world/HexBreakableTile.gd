@@ -213,7 +213,7 @@ func _spawn_particles(pixels: Array[Vector2i], global_impact: Vector2) -> void:
 
 		var tween := create_tween()
 		tween.tween_property(shard, "global_position", pixel_world + vel * 0.35, 0.35)
-		tween.parallel().tween_property(shard, "color:a", 0.0, 0.35)
+		tween.parallel().tween_property(shard, "modulate:a", 0.0, 0.35)
 		tween.tween_callback(shard.queue_free)
 
 

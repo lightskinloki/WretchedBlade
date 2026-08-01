@@ -91,7 +91,8 @@ func _ready() -> void:
 	var seed_val: int = region.get("seed", randi())
 	if seed_val == 0:
 		seed_val = randi()
-	_start_dungeon(seed_val, region.get("hex_theme", "geocrash"), region.get("difficulty", 0.4), region.get("is_boss", false))
+	var opening_theme: String = "nullpulse" if GameManager.is_first_run else region.get("hex_theme", "geocrash")
+	_start_dungeon(seed_val, opening_theme, region.get("difficulty", 0.4), region.get("is_boss", false))
 
 # ── Dungeon lifecycle ─────────────────────────────────────────────────────────
 func _start_dungeon(seed_val: int, hex_theme: String = "geocrash", difficulty: float = 0.4, is_boss: bool = false) -> void:
@@ -136,6 +137,17 @@ func _load_room(node_id: int, prev_node_id: int) -> void:
 
 	var grid: Array = world_gen.build_grid_for_graph_node(dungeon_graph, node_id, rng, theme)
 	world_gen.build_room(grid, world, true, node_id)
+	world_gen.apply_room_lighting(
+		world,
+		theme,
+		current_seed + node_id,
+		node.archetype == RoomArchetype.Archetype.SANCTUARY,
+		GameManager.is_first_run,
+		node.room_w,
+		node.room_h,
+		node.archetype,
+		node.complexity
+	)
 
 	# Move player to safe spawn BEFORE adding kill triggers or enemies
 	# so body_entered can't fire from the old position overlapping new hazards.

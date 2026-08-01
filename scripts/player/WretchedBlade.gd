@@ -90,6 +90,7 @@ var _hex_shape_default_size: Vector2
 
 # Charge visual tracking
 var _charge_glow := 0.0  # 0.0–1.0 current glow intensity
+var _core_light: PointLight2D
 
 # Active hex data for hit callback
 var _active_hex_pattern: Dictionary = {}
@@ -106,6 +107,16 @@ const REST_Y       := -20.0
 
 func _ready() -> void:
 	_refresh_blade_sprite()
+	_core_light = PointLight2D.new()
+	_core_light.name = "NullpulseCoreLight"
+	_core_light.texture = PixelRenderer.generate_light_mask(42, 0.55, "harmonic")
+	_core_light.color = PixelRenderer.C_BLADE_EDGE
+	_core_light.energy = 0.13
+	_core_light.z_index = 5
+	_core_light.range_z_min = -20
+	_core_light.range_z_max = 20
+	_core_light.shadow_enabled = true
+	add_child(_core_light)
 	attack_hitbox.monitoring = false
 	attack_hitbox.collision_mask = 2 | 1  # Detect enemies (layer 2) + destructible geometry (layer 1)
 	attack_hitbox.body_entered.connect(_on_hit_body)
@@ -133,6 +144,7 @@ func _ready() -> void:
 	_set_rest_position()
 
 func _physics_process(delta: float) -> void:
+	_update_core_light()
 	if current_state != AttackState.IDLE:
 		_update_attack_state(delta)
 	else:
@@ -578,6 +590,15 @@ func _refresh_blade_sprite() -> void:
 	blade_sprite.texture = PixelRenderer.generate_blade_texture(current_form, health_pct)
 	blade_sprite.scale   = Vector2(1.25, 1.25)
 
+func _update_core_light() -> void:
+	if _core_light == null:
+		return
+	var exposure := clampf((0.70 - health_pct) / 0.70, 0.0, 1.0)
+	var pulse := 1.0 + (sin(Time.get_ticks_msec() * 0.018) * 0.24 if health_pct < 0.30 else 0.0)
+	_core_light.color = PixelRenderer.C_BLADE_EDGE.lerp(PixelRenderer.C_CRACK_GLOW, exposure)
+	_core_light.energy = (0.13 + exposure * 0.7) * pulse
+	_core_light.texture_scale = 0.55 + exposure * 0.45
+
 func _play_transmutation_flash() -> void:
 	var t := create_tween()
 	t.tween_property(blade_sprite, "scale", Vector2(5.0, 5.0), 0.12)
@@ -631,6 +652,10 @@ const C_BLADE_BODY := Color(0.70, 0.80, 0.90, 1.0)
 const C_CRACK_GLOW := Color(0.80, 0.20, 1.00, 1.0)
 
 func _shatter() -> void:
+	if _core_light:
+		_core_light.energy = 4.0
+		_core_light.texture_scale = 2.4
+		await get_tree().create_timer(0.08).timeout
 	blade_sprite.visible = false
 	_spawn_shard_particles()
 	emit_signal("blade_shattered")

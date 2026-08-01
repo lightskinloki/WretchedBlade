@@ -41,6 +41,19 @@ var _tex: Dictionary = {}
 # the same layout. Keyed by node_id. Cleared on new dungeon start.
 var _grid_cache: Dictionary = {}
 var _tile_image_cache: Dictionary = {}
+var _far_environment: Sprite2D
+var _structure_layer: Sprite2D
+var _far_base_position := Vector2.ZERO
+var _structure_base_position := Vector2.ZERO
+
+const LIGHTING_PROFILES := {
+	RegionTheme.HexTheme.GEOCRASH: {"ambient": Color(0.52, 0.40, 0.27), "emitter": Color(1.0, 0.48, 0.16), "falloff": "hex", "flicker": 0.10, "scene": "geocrash"},
+	RegionTheme.HexTheme.VOIDREND: {"ambient": Color(0.33, 0.37, 0.50), "emitter": Color(0.24, 0.46, 0.90), "falloff": "void", "flicker": 0.02, "scene": "voidrend"},
+	RegionTheme.HexTheme.ECHOSCREAM: {"ambient": Color(0.45, 0.30, 0.33), "emitter": Color(0.95, 0.18, 0.22), "falloff": "hex", "flicker": 0.18, "scene": "echoscream"},
+	RegionTheme.HexTheme.MEMOREAVE: {"ambient": Color(0.50, 0.42, 0.34), "emitter": Color(0.92, 0.70, 0.48), "falloff": "harmonic", "flicker": 0.05, "scene": "memoreave"},
+	RegionTheme.HexTheme.NULLPULSE: {"ambient": Color(0.34, 0.34, 0.34), "emitter": Color(0.94, 0.12, 0.08), "falloff": "hex", "flicker": 0.15, "scene": "nullpulse"},
+	RegionTheme.HexTheme.TECHNOMANTIC: {"ambient": Color(0.42, 0.42, 0.34), "emitter": Color(0.95, 0.48, 0.10), "falloff": "harmonic", "flicker": 0.04, "scene": "technomantic"},
+}
 
 func clear_cache() -> void:
 	_grid_cache = {}
@@ -48,6 +61,16 @@ func clear_cache() -> void:
 
 func _ready() -> void:
 	_cache_textures()
+
+func _process(_delta: float) -> void:
+	# Procedural parallax: the environment is a place with depth, not a flat fill.
+	var player_node := get_tree().get_first_node_in_group("player") as Node2D
+	if player_node == null:
+		return
+	if is_instance_valid(_far_environment):
+		_far_environment.position = _far_base_position + player_node.global_position * 0.08
+	if is_instance_valid(_structure_layer):
+		_structure_layer.position = _structure_base_position + player_node.global_position * 0.24
 
 func _cache_textures() -> void:
 	_tex[FLOOR]      = PixelRenderer.generate_tile_texture(PixelRenderer.TileType.FLOOR,      0)
@@ -94,6 +117,8 @@ func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false, no
 			sprite.position   = Vector2(world_x + TILE_SIZE * 0.5, world_y + TILE_SIZE * 0.5)
 			sprite.texture    = _tex.get(id, _tex[FLOOR]) if id != HEX_WALL else _tex[WALL]
 			parent.add_child(sprite)
+			if id in [FLOOR, WALL, NULLSTONE, HEX_WALL]:
+				_add_tile_occluder(sprite)
 
 			# Collision for solid tiles
 			if id in [FLOOR, WALL, PLATFORM, NULLSTONE, CHECKPOINT, LOCKED_DOOR, HEX_WALL]:
@@ -159,6 +184,89 @@ func build_room(grid: Array, parent: Node2D, suppress_triggers: bool = false, no
 	if not suppress_triggers:
 		_add_exit_trigger(parent, room_w, room_h)
 		_add_abyss_kill_trigger(parent, room_w, room_h)
+
+func apply_room_lighting(parent: Node2D, theme: int, seed_val: int, is_sanctuary: bool = false, is_blade_attuned: bool = false, room_w: int = ROOM_W, room_h: int = ROOM_H, archetype: int = 0, complexity: float = 0.5) -> void:
+	var profile: Dictionary = LIGHTING_PROFILES.get(theme, LIGHTING_PROFILES[RegionTheme.HexTheme.GEOCRASH])
+	var room_size := Vector2i(room_w * TILE_SIZE, room_h * TILE_SIZE)
+	var overscan := Vector2i(512, 384)
+	var backdrop_size := room_size + overscan * 2
+	var far_world := Sprite2D.new()
+	far_world.name = "FarEnvironment"
+	far_world.texture = PixelRenderer.generate_far_environment_texture(
+		backdrop_size.x, backdrop_size.y,
+		Color(0.035, 0.045, 0.08) if is_blade_attuned else profile["ambient"].darkened(0.70),
+		PixelRenderer.C_CRACK_GLOW if is_blade_attuned else profile["emitter"],
+		seed_val, "blade_attuned" if is_blade_attuned else profile["scene"]
+	)
+	far_world.centered = false
+	far_world.position = Vector2(-overscan.x, -overscan.y)
+	far_world.z_index = -20
+	parent.add_child(far_world)
+	_far_environment = far_world
+	_far_base_position = far_world.position
+	var backdrop := Sprite2D.new()
+	backdrop.name = "RoomStructureLayer"
+	backdrop.texture = PixelRenderer.generate_atmosphere_texture(
+		backdrop_size.x, backdrop_size.y,
+		Color.TRANSPARENT,
+		PixelRenderer.C_BLADE_BODY if is_blade_attuned else profile["emitter"],
+		seed_val,
+		archetype,
+		complexity
+	)
+	backdrop.centered = false
+	backdrop.position = Vector2(-overscan.x, -overscan.y)
+	backdrop.z_index = -12
+	parent.add_child(backdrop)
+	_structure_layer = backdrop
+	_structure_base_position = backdrop.position
+	var ambient := CanvasModulate.new()
+	ambient.name = "RegionalAmbient"
+	# The tutorial is the one location tuned directly to the Blade: void-steel
+	# ambient values with violet core emission, rather than a regional Hex palette.
+	ambient.color = Color(0.52, 0.52, 0.66) if is_blade_attuned else (Color(0.82, 0.76, 0.64) if is_sanctuary else profile["ambient"])
+	parent.add_child(ambient)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_val
+	var emitter_count := 8 if is_blade_attuned else (3 if room_w >= 36 else 2)
+	for i in range(emitter_count):
+		var light := PointLight2D.new()
+		light.name = ("BladeAttunedEmitter" if is_blade_attuned else "BackgroundEmitter") + "_%d" % i
+		light.texture = PixelRenderer.generate_light_mask(80 + i * 16, 0.45, "harmonic" if (is_sanctuary or is_blade_attuned) else profile["falloff"])
+		light.color = PixelRenderer.C_CRACK_GLOW if is_blade_attuned else (Color(1.0, 0.84, 0.62) if is_sanctuary else profile["emitter"])
+		light.energy = 0.82 if is_blade_attuned else (0.42 if is_sanctuary else 0.32)
+		light.position = Vector2(rng.randf_range(64.0, float(room_size.x - 64)), rng.randf_range(56.0, float(maxi(80, room_size.y - 120))))
+		light.z_index = -10
+		light.range_z_min = -20
+		light.range_z_max = 10
+		light.shadow_enabled = not is_sanctuary and not is_blade_attuned
+		parent.add_child(light)
+		var source := Sprite2D.new()
+		source.name = "EnvironmentalLightSource_%d" % i
+		source.texture = PixelRenderer.generate_light_mask(10, 0.75, "harmonic")
+		source.modulate = light.color
+		source.position = light.position
+		source.z_index = -11
+		parent.add_child(source)
+	if is_blade_attuned:
+		var key_light := PointLight2D.new()
+		key_light.name = "BladeAttunedKeyLight"
+		key_light.texture = PixelRenderer.generate_light_mask(180, 0.55, "harmonic")
+		key_light.color = PixelRenderer.C_CRACK_GLOW
+		key_light.energy = 0.95
+		key_light.position = Vector2(float(room_size.x) * 0.5, float(room_size.y) * 0.36)
+		key_light.z_index = -10
+		key_light.range_z_min = -20
+		key_light.range_z_max = 10
+		parent.add_child(key_light)
+
+func _add_tile_occluder(sprite: Sprite2D) -> void:
+	var occluder := LightOccluder2D.new()
+	var polygon := OccluderPolygon2D.new()
+	var half := float(TILE_SIZE) * 0.5
+	polygon.polygon = PackedVector2Array([Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half)])
+	occluder.occluder = polygon
+	sprite.add_child(occluder)
 
 # ── Enemy spawning ───────────────────────────────────────────────────────────
 # Spawns enemies based on a room spec dict (precise counts).

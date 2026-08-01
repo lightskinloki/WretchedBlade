@@ -66,6 +66,8 @@ zoom = Vector2(2.0, 2.0)
 ;  Right half = button zone
 ; ══════════════════════════════════════════════
 [node name="TouchInput" type="CanvasLayer" parent="."]
+visible = false
+process_mode = 4
 layer = 10
 script = ExtResource("4_touch")
 

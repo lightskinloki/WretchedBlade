@@ -30,35 +30,13 @@ func _ready() -> void:
 # ── Procedural Sanctuary Level Generation ────────────────────────────────────
 # Uses DungeonGraph + RoomTerrainGenerator + WorldGenerator
 func _generate_sanctuary_level() -> void:
-	# 1. Construct a single-node graph with the SANCTUARY archetype
-	var graph := DungeonGraph.new()
-	var nid := graph.create_node(
-		RoomArchetype.Archetype.SANCTUARY,
-		44,  # room_w (matches standard ROOM_W)
-		22,  # room_h (matches standard ROOM_H)
-		0    # section_id
-	)
-	var room_node := graph.get_node(nid)
-	graph.set_start_node(nid)
-	graph.set_end_node(nid)
+	var env_data: Dictionary = CampsiteEnvironmentGenerator.build(world_container, 77777)
+	var spawn_pos: Vector2 = env_data.get("spawn", Vector2(600.0, 360.0))
+	var floor_spots: Array[Vector2] = env_data.get("floor_spots", [])
+	var room_w: int = env_data.get("room_w", 76)
 
-	# 2. Render room grid using RoomTerrainGenerator
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 77777  # Fixed seed for consistent sanctuary layout
-	var grid: Array = world_gen.build_grid_for_graph_node(graph, 0, rng, RegionTheme.HexTheme.GEOCRASH)
-
-	# 3. Build physical geometry via WorldGenerator (tiles, collision, PixelRenderer textures)
-	world_gen.build_room(grid, world_container, true, 0)
-
-	# 4. Find safe floor positions for Player spawn and NPC stations
-	var floor_spots: Array[Vector2] = _find_floor_spots(grid, room_node.room_w, room_node.room_h)
-	
-	# Spawn Player at center floor spot
-	var center_spot := floor_spots[floor_spots.size() / 2] if floor_spots.size() > 0 else Vector2(352.0, 280.0)
-	_spawn_player(center_spot)
-
-	# Setup NPC station triggers along the generated sanctuary floor
-	_setup_stations(floor_spots, room_node.room_w)
+	_spawn_player(spawn_pos)
+	_setup_stations(floor_spots, room_w)
 
 func _find_floor_spots(grid: Array, w: int, h: int) -> Array[Vector2]:
 	var spots: Array[Vector2] = []

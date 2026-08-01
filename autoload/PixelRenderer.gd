@@ -37,6 +37,9 @@ enum BodyPose {
 # Enemy types
 enum EnemyType { NULLMAN, RIVAL }
 
+# Runtime-only masks shared by world emitters and the exposed Blade core.
+static var _light_mask_cache: Dictionary = {}
+
 # ── Color palette (the Nullpulse aesthetic) ───────────────────────────────────
 const C_VOID        := Color(0.05, 0.05, 0.10, 1.0)  # Deep space black
 const C_BLADE_BODY  := Color(0.70, 0.80, 0.90, 1.0)  # Cold steel
@@ -749,6 +752,179 @@ func generate_glow_texture(px_radius: int) -> ImageTexture:
 				a *= a
 				img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 	return ImageTexture.create_from_image(img)
+
+static func generate_light_mask(radius: int, hardness: float = 0.5, falloff_type: String = "harmonic") -> ImageTexture:
+	var safe_radius := maxi(1, radius)
+	var safe_hardness := clampf(hardness, 0.05, 1.0)
+	var cache_key := "%d:%.2f:%s" % [safe_radius, safe_hardness, falloff_type]
+	if _light_mask_cache.has(cache_key):
+		return _light_mask_cache[cache_key]
+	var size := safe_radius * 2
+	var center := Vector2(float(safe_radius) - 0.5, float(safe_radius) - 0.5)
+	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	image.fill(Color.TRANSPARENT)
+	for y in range(size):
+		for x in range(size):
+			var delta := Vector2(float(x), float(y)) - center
+			var distance := delta.length() / float(safe_radius)
+			if distance > 1.0:
+				continue
+			var alpha := pow(maxf(0.0, 1.0 - distance), 1.0 / safe_hardness)
+			if falloff_type == "void":
+				alpha = pow(maxf(0.0, 1.0 - distance), 1.0 + safe_hardness * 3.0)
+			elif falloff_type == "hex":
+				var fracture := sin(delta.angle() * 7.0 + distance * 17.0) * 0.10
+				alpha = pow(maxf(0.0, 1.0 - distance + fracture), 1.0 / safe_hardness)
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+	var texture := ImageTexture.create_from_image(image)
+	_light_mask_cache[cache_key] = texture
+	return texture
+
+static func generate_atmosphere_texture(width: int, height: int, base: Color, detail: Color, seed_val: int, archetype: int = 0, complexity: float = 0.5) -> ImageTexture:
+	var safe_w := maxi(1, width)
+	var safe_h := maxi(1, height)
+	var image := Image.create(safe_w, safe_h, false, Image.FORMAT_RGBA8)
+	image.fill(Color.TRANSPARENT)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_val
+	# Distant concrete shells, conduits, and low-frequency atmospheric grain.
+	for x in range(safe_w):
+		for y in range(safe_h):
+			if rng.randf() < 0.025:
+				image.set_pixel(x, y, detail.darkened(0.35))
+	var structure_count := maxi(2, int(lerpf(2.0, 7.0, clampf(complexity, 0.0, 1.0))))
+	for _i in range(structure_count):
+		var col_x := rng.randi_range(0, safe_w - 1)
+		var col_w := rng.randi_range(10, 26)
+		var col_top := rng.randi_range(8, maxi(9, safe_h / 2))
+		for x in range(col_x, mini(safe_w, col_x + col_w)):
+			for y in range(col_top, safe_h):
+				if (x - col_x) % 5 != 0:
+					image.set_pixel(x, y, detail.darkened(0.45))
+	for _i in range(3):
+		var conduit_y := rng.randi_range(18, maxi(19, safe_h - 30))
+		var start_x := rng.randi_range(0, maxi(0, safe_w / 3))
+		var length := rng.randi_range(maxi(24, safe_w / 5), maxi(25, safe_w / 2))
+		for x in range(start_x, mini(safe_w, start_x + length)):
+			image.set_pixel(x, conduit_y, detail.darkened(0.15))
+	# Archetype-specific distant structures. These are visual-only echoes of the
+	# same planned room role, never collision or hand-authored scenery.
+	match archetype:
+		1: # Bridge Span: heavy supports descending beneath the route.
+			for x in range(safe_w / 5, safe_w, maxi(28, safe_w / 4)):
+				for y in range(safe_h / 2, safe_h): image.set_pixel(x, y, detail.darkened(0.22))
+		2: # Storage Vault: repeating archive alcoves.
+			for x in range(18, safe_w - 18, 34):
+				for y in range(20, safe_h * 2 / 3, 18): image.set_pixel(x, y, detail.darkened(0.12))
+		5: # Watchtower: narrow distant window shafts.
+			for x in range(12, safe_w, 42):
+				for y in range(8, safe_h - 8):
+					if y % 9 < 6: image.set_pixel(x, y, detail.darkened(0.05))
+		7: # Sanctuary: master tuning fork monolith behind the hearth.
+			var cx := safe_w / 2
+			for y in range(14, safe_h * 3 / 4):
+				image.set_pixel(cx - 3, y, detail)
+				image.set_pixel(cx + 3, y, detail)
+				if y > safe_h * 2 / 3: image.set_pixel(cx, y, detail)
+		8: # Boss arena: a distant ritual ring frames the confrontation.
+			var cx := safe_w / 2
+			var cy := safe_h / 3
+			for x in range(cx - 42, cx + 43):
+				var dy := int(sqrt(maxf(0.0, 1764.0 - float((x - cx) * (x - cx)))))
+				if cy - dy >= 0: image.set_pixel(x, cy - dy, detail.darkened(0.10))
+	return ImageTexture.create_from_image(image)
+
+static func generate_far_environment_texture(width: int, height: int, base: Color, detail: Color, seed_val: int, style: String = "geocrash") -> ImageTexture:
+	var safe_w := maxi(1, width)
+	var safe_h := maxi(1, height)
+	var image := Image.create(safe_w, safe_h, false, Image.FORMAT_RGBA8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_val + 9137
+	# An opaque, layered world behind the playable slice: never an exposed clear color.
+	for y in range(safe_h):
+		var depth := float(y) / float(safe_h)
+		var row_col := base.lightened(depth * 0.18)
+		for x in range(safe_w):
+			image.set_pixel(x, y, row_col)
+	# Atmospheric grain and a distant horizon band.
+	for _i in range((safe_w * safe_h) / 140):
+		var px := rng.randi_range(0, safe_w - 1)
+		var py := rng.randi_range(0, safe_h - 1)
+		image.set_pixel(px, py, detail.darkened(0.65).lerp(base, 0.55))
+	var horizon := int(float(safe_h) * 0.62)
+	for x in range(safe_w):
+		var silhouette_h := rng.randi_range(12, 54)
+		for y in range(maxi(0, horizon - silhouette_h), safe_h):
+			if rng.randf() > 0.12:
+				image.set_pixel(x, y, detail.darkened(0.55))
+	match style:
+		"voidrend":
+			# Floating supports recede into an inhabited abyss rather than blank black.
+			for _i in range(7):
+				var ix := rng.randi_range(0, safe_w - 36)
+				var iy := rng.randi_range(28, horizon)
+				for x in range(ix, ix + rng.randi_range(18, 54)):
+					for y in range(iy, iy + rng.randi_range(3, 9)): image.set_pixel(x, y, detail.darkened(0.35))
+		"echoscream":
+			# Distant relay towers and repeated signal bands.
+			for x in range(28, safe_w, 86):
+				for y in range(35, horizon):
+					if x % 2 == 0: image.set_pixel(x, y, detail.darkened(0.12))
+		"memoreave":
+			# Perspective archive arches.
+			for x in range(36, safe_w - 36, 92):
+				for y in range(42, horizon):
+					if y < 52 or x % 3 == 0: image.set_pixel(x, y, detail.darkened(0.22))
+		"nullpulse":
+			# Containment ribs converge around an unstable core far behind the room.
+			var cx := safe_w / 2
+			for y in range(16, horizon):
+				var offset := int(float(y) * 0.22)
+				if cx - offset >= 0: image.set_pixel(cx - offset, y, detail.darkened(0.18))
+				if cx + offset < safe_w: image.set_pixel(cx + offset, y, detail.darkened(0.18))
+		"technomantic":
+			for x in range(0, safe_w, 32):
+				for y in range(18, safe_h, 40): image.set_pixel(x, y, detail.darkened(0.10))
+		"blade_attuned":
+			# The tutorial exists inside the Blade's scar: fracture fields, not empty space.
+			for _i in range(18):
+				var sx := rng.randi_range(0, safe_w - 1)
+				var sy := rng.randi_range(0, safe_h - 1)
+				for step in range(rng.randi_range(8, 28)):
+					var px := sx + step
+					var py := sy + int(sin(float(step) * 0.5) * 3.0)
+					if px >= 0 and px < safe_w and py >= 0 and py < safe_h: image.set_pixel(px, py, detail.darkened(0.05))
+		"campsite":
+			# The hub looks out across the Severed Lands: a wounded horizon, not an enclosed dungeon.
+			for _i in range(14):
+				var ruin_x := rng.randi_range(0, safe_w - 24)
+				var ruin_w := rng.randi_range(8, 30)
+				var ruin_top := rng.randi_range(maxi(20, horizon - 110), horizon - 12)
+				for x in range(ruin_x, mini(safe_w, ruin_x + ruin_w)):
+					for y in range(ruin_top, horizon + rng.randi_range(0, 20)):
+						if (x + y) % 7 != 0: image.set_pixel(x, y, detail.darkened(0.42))
+			for x in range(0, safe_w):
+				var ridge_y := horizon - 8 + int(sin(float(x) * 0.025) * 5.0)
+				image.set_pixel(x, ridge_y, detail.darkened(0.26))
+	return ImageTexture.create_from_image(image)
+
+static func generate_campsite_landmark_texture() -> ImageTexture:
+	var image := Image.create(48, 104, false, Image.FORMAT_RGBA8)
+	image.fill(Color.TRANSPARENT)
+	var iron := Color(0.19, 0.22, 0.28, 1.0)
+	var edge := Color(0.42, 0.46, 0.48, 1.0)
+	var ember := Color(1.0, 0.57, 0.23, 1.0)
+	# The Master Tuning Fork is stable human resonance, never the Blade's violet wound.
+	for y in range(20, 98):
+		for x in range(20, 28): image.set_pixel(x, y, iron if x > 20 else edge)
+	for y in range(4, 44):
+		for x in range(10, 17): image.set_pixel(x, y, edge if x == 10 else iron)
+		for x in range(31, 38): image.set_pixel(x, y, edge if x == 31 else iron)
+	for x in range(13, 35):
+		for y in range(37, 45): image.set_pixel(x, y, iron)
+	for x in range(22, 26):
+		for y in range(24, 86, 9): image.set_pixel(x, y, ember)
+	return ImageTexture.create_from_image(image)
 
 # Generate a procedural pixel shard texture for debris, weapon shatter, and hit impacts
 func generate_pixel_shard_texture(width: int, height: int, color: Color = Color.WHITE) -> ImageTexture:
