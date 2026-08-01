@@ -73,63 +73,63 @@ static func build_campaign() -> OverworldGraph:
 	# Node 0 — Tutorial / Starter Vault
 	graph._add_node(OverworldNode.new(
 		0, "The Shattered Vault", "geocrash", 0.3, NodeType.STARTER_VAULT,
-		Vector2(80, 195),
+		Vector2(110, 380),
 		"An ancient vault where the Wretched Blade first awakens. The walls bear Geocrash fractures from the First Hexocaust."
 	))
 
 	# Node 1 — Campsite (safe hub after tutorial)
 	graph._add_node(OverworldNode.new(
 		1, "Ashen Campsite", "geocrash", 0.0, NodeType.CAMPSITE,
-		Vector2(230, 195),
+		Vector2(260, 380),
 		"A sheltered alcove between the ruined yards. Rest here to attune the blade and refill Whetstones."
 	))
 
 	# Node 2 — Geocrash region: Fractured Yards
 	graph._add_node(OverworldNode.new(
 		2, "The Fractured Yards", "geocrash", 0.4, NodeType.BOSS_GATE,
-		Vector2(420, 120),
+		Vector2(460, 220),
 		"Cubic, angular ruins at unnatural angles. The Shattered Sovereign's domain — grays, rust, and fractured earth."
 	))
 
 	# Node 3 — Voidrend region: Hollow Expanse
 	graph._add_node(OverworldNode.new(
 		3, "The Hollow Expanse", "voidrend", 0.5, NodeType.BOSS_GATE,
-		Vector2(230, 80),
+		Vector2(260, 160),
 		"Scooped-out reality. Floating islands in empty space, void-edges, unreliable gravity. The Void Echo awaits."
 	))
 
 	# Node 4 — Echoscream region: Resonant Ruins
 	graph._add_node(OverworldNode.new(
 		4, "The Resonant Ruins", "echoscream", 0.55, NodeType.BOSS_GATE,
-		Vector2(560, 195),
+		Vector2(650, 220),
 		"Impossibly tall sound-warping towers. Translucent walls, audiovisual distortion. The Screaming Spire reverberates."
 	))
 
 	# Node 5 — Memoreave region: Forgotten Archive
 	graph._add_node(OverworldNode.new(
 		5, "The Forgotten Archive", "memoreave", 0.65, NodeType.BOSS_GATE,
-		Vector2(350, 280),
+		Vector2(420, 540),
 		"Memory-warped libraries and monuments. Perspective shifts, temporal echoes. The Memory Thief hoards lost minds."
 	))
 
 	# Node 6 — Nullpulse region: Unraveling Core
 	graph._add_node(OverworldNode.new(
 		6, "The Unraveling Core", "nullpulse", 0.75, NodeType.BOSS_GATE,
-		Vector2(560, 310),
+		Vector2(650, 540),
 		"The world visibly unravels. Fragmenting ground, crackling energy, collapsing reality. The Nullpulse Heart beats."
 	))
 
 	# Node 7 — Technomantic region: Corroded Expanse
 	graph._add_node(OverworldNode.new(
 		7, "The Corroded Expanse", "technomantic", 0.85, NodeType.BOSS_GATE,
-		Vector2(700, 250),
+		Vector2(790, 440),
 		"Rusted machinery and bio-mechanical corruption. Industrial decay fused with organic growth. The Rust Tyrant reigns."
 	))
 
 	# Node 8 — Final region: Throne of Ashes
 	graph._add_node(OverworldNode.new(
 		8, "The Throne of Ashes", "nullpulse", 1.0, NodeType.BOSS_GATE,
-		Vector2(700, 120),
+		Vector2(790, 200),
 		"Ash, bone, and echoes of all prior Hexocausts. The Final Echo — the Wretched Blade's inverse — awaits the end."
 	))
 

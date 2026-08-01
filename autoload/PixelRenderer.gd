@@ -1241,3 +1241,139 @@ static func get_status_name(status_id: int) -> String:
 			return "BURNING"
 		_:
 			return ""
+
+
+# ── Procedural Cartographic Overworld Map Texture Generator ────────────────────
+# Renders a dark fantasy visual map of The Severed Lands at runtime (1280x720).
+# Zero external images — 100% procedurally generated pixel art cartography!
+static func generate_cartographic_map_texture(w: int = 1280, h: int = 720, seed_val: int = 42) -> ImageTexture:
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var noise := FastNoiseLite.new()
+	noise.seed = seed_val
+	noise.frequency = 0.0045
+	noise.fractal_octaves = 4
+	noise.fractal_gain = 0.55
+
+	var ridge_noise := FastNoiseLite.new()
+	ridge_noise.seed = seed_val + 8888
+	ridge_noise.frequency = 0.012
+	ridge_noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+
+	var c_void       := Color(0.04, 0.035, 0.055, 1.0)
+	var c_land_deep  := Color(0.075, 0.065, 0.09, 1.0)
+	var c_land_mid   := Color(0.10, 0.085, 0.115, 1.0)
+	var c_coastline  := Color(0.35, 0.28, 0.20, 0.7)
+	var c_topo_line  := Color(0.22, 0.18, 0.14, 0.4)
+	var c_ridge      := Color(0.40, 0.32, 0.22, 0.6)
+
+	for y in range(0, h, 2):
+		for x in range(0, w, 2):
+			var n_val := noise.get_noise_2d(x, y)
+			var r_val := ridge_noise.get_noise_2d(x, y)
+			
+			var col: Color = c_void
+			if n_val > -0.15:
+				# Landmass terrain
+				var elev := (n_val + 0.15) / 1.15
+				col = c_land_deep.lerp(c_land_mid, elev)
+				
+				# Topographic contour lines
+				var topo_step := fmod(elev * 12.0, 1.0)
+				if topo_step < 0.08:
+					col = col.lerp(c_topo_line, 0.6)
+
+				# Mountain ridges
+				if r_val > 0.45:
+					col = col.lerp(c_ridge, (r_val - 0.45) * 1.8)
+
+				# Coastline boundary outline
+				if n_val < -0.10:
+					col = col.lerp(c_coastline, 0.8)
+			else:
+				# Abyssal water contour ripples near shore
+				if n_val > -0.22:
+					var wave := fmod((n_val + 0.22) * 40.0, 1.0)
+					if wave < 0.15:
+						col = c_void.lerp(Color(0.2, 0.18, 0.25, 0.4), 0.5)
+
+			# Hex grid lines (spacing ~48px)
+			var hx := fmod(float(x) + float(y) * 0.577, 48.0)
+			var hy := fmod(float(y), 41.5)
+			if hx < 1.0 or hy < 1.0:
+				col = col.lerp(Color(0.25, 0.20, 0.16, 0.25), 0.3)
+
+			# Set 2x2 pixel block for fast rendering
+			img.set_pixel(x, y, col)
+			if x + 1 < w: img.set_pixel(x + 1, y, col)
+			if y + 1 < h: img.set_pixel(x, y + 1, col)
+			if x + 1 < w and y + 1 < h: img.set_pixel(x + 1, y + 1, col)
+
+	# Stamp stylized region landmark features:
+	# 1. Geocrash Shattered Sovereign Crater (near node 2: X=460, Y=220)
+	_draw_map_crater(img, 460, 220, 55, Color(0.8, 0.5, 0.2, 0.5))
+	# 2. Voidrend Rift Breach (near node 3: X=260, Y=160)
+	_draw_map_rift(img, 260, 160, 48, Color(0.6, 0.2, 0.9, 0.6))
+	# 3. Echoscream Resonant Spire Rings (near node 4: X=650, Y=220)
+	_draw_map_spire_rings(img, 650, 220, 60, Color(0.3, 0.8, 0.9, 0.5))
+	# 4. Forgotten Archive Ruin Labyrinth (near node 5: X=420, Y=540)
+	_draw_map_ruin_grid(img, 420, 540, 50, Color(0.8, 0.4, 0.7, 0.5))
+	# 5. Corroded Expanse Industrial Gears (near node 7: X=790, Y=440)
+	_draw_map_gear_ring(img, 790, 440, 52, Color(0.9, 0.5, 0.2, 0.5))
+
+	return ImageTexture.create_from_image(img)
+
+# Helper: Draw crater rings on map
+static func _draw_map_crater(img: Image, cx: int, cy: int, radius: int, col: Color) -> void:
+	var w := img.get_width(); var h := img.get_height()
+	for r in [radius * 0.4, radius * 0.7, radius]:
+		var r_int := int(r)
+		for a in range(0, 360, 4):
+			var rad := deg_to_rad(float(a))
+			var px := cx + int(cos(rad) * float(r_int))
+			var py := cy + int(sin(rad) * float(r_int))
+			if px >= 0 and px < w and py >= 0 and py < h:
+				var orig := img.get_pixel(px, py)
+				img.set_pixel(px, py, orig.lerp(col, 0.5))
+
+# Helper: Draw void rift crack
+static func _draw_map_rift(img: Image, cx: int, cy: int, radius: int, col: Color) -> void:
+	var w := img.get_width(); var h := img.get_height()
+	for i in range(-radius, radius, 2):
+		var offset := int(sin(float(i) * 0.15) * 8.0)
+		var px := cx + offset
+		var py := cy + i
+		if px >= 0 and px < w and py >= 0 and py < h:
+			img.set_pixel(px, py, img.get_pixel(px, py).lerp(col, 0.7))
+
+# Helper: Draw concentric spire soundwaves
+static func _draw_map_spire_rings(img: Image, cx: int, cy: int, max_r: int, col: Color) -> void:
+	var w := img.get_width(); var h := img.get_height()
+	for step in [15, 30, 45]:
+		for a in range(0, 360, 6):
+			var rad := deg_to_rad(float(a))
+			var px := cx + int(cos(rad) * float(step))
+			var py := cy + int(sin(rad) * float(step))
+			if px >= 0 and px < w and py >= 0 and py < h:
+				img.set_pixel(px, py, img.get_pixel(px, py).lerp(col, 0.4))
+
+# Helper: Draw ruin square outlines
+static func _draw_map_ruin_grid(img: Image, cx: int, cy: int, size: int, col: Color) -> void:
+	var w := img.get_width(); var h := img.get_height()
+	var half := size / 2
+	for x in range(cx - half, cx + half, 2):
+		for y in range(cy - half, cy + half, 2):
+			if x == cx - half or x == cx + half - 2 or y == cy - half or y == cy + half - 2:
+				if x >= 0 and x < w and y >= 0 and y < h:
+					img.set_pixel(x, y, img.get_pixel(x, y).lerp(col, 0.5))
+
+# Helper: Draw rusted gear cog ring
+static func _draw_map_gear_ring(img: Image, cx: int, cy: int, radius: int, col: Color) -> void:
+	var w := img.get_width(); var h := img.get_height()
+	for a in range(0, 360, 15):
+		var rad := deg_to_rad(float(a))
+		var r_out := radius if (a % 30 == 0) else radius - 8
+		var px := cx + int(cos(rad) * float(r_out))
+		var py := cy + int(sin(rad) * float(r_out))
+		if px >= 0 and px < w and py >= 0 and py < h:
+			img.set_pixel(px, py, img.get_pixel(px, py).lerp(col, 0.6))
+

@@ -3,9 +3,9 @@ extends Node2D
 # Rich procedural dark aesthetic: atmospheric hex background, ember particles,
 # animated energy paths, hexagonal region seals, and detailed region panel.
 
-const NODE_RADIUS := 20.0
-const NODE_RADIUS_SELECTED := 26.0
-const CONNECTION_WIDTH := 3.0
+const NODE_RADIUS := 30.0
+const NODE_RADIUS_SELECTED := 40.0
+const CONNECTION_WIDTH := 4.5
 
 # Theme color palettes (Primary, Glow, Background Ambient)
 const THEME_DATA := {
@@ -61,9 +61,10 @@ var _bg_glow_current: Color = Color(0.06, 0.05, 0.08, 1.0)
 
 # Ambient particles
 var _particles: Array[Dictionary] = []
-const NUM_PARTICLES := 40
+const NUM_PARTICLES := 60
 
 # UI elements
+var _map_sprite: Sprite2D
 var _bg_rect: ColorRect
 var _title_label: Label
 var _subtitle_label: Label
@@ -109,108 +110,116 @@ func _init_particles() -> void:
 	rng.randomize()
 	for i in range(NUM_PARTICLES):
 		_particles.append({
-			"pos": Vector2(rng.randf_range(0, 844), rng.randf_range(0, 390)),
-			"speed": rng.randf_range(12.0, 28.0),
-			"size": rng.randf_range(1.5, 3.5),
-			"alpha": rng.randf_range(0.2, 0.6),
-			"drift": rng.randf_range(-6.0, 6.0),
+			"pos": Vector2(rng.randf_range(0, 1280), rng.randf_range(0, 720)),
+			"speed": rng.randf_range(14.0, 32.0),
+			"size": rng.randf_range(2.0, 4.5),
+			"alpha": rng.randf_range(0.2, 0.7),
+			"drift": rng.randf_range(-8.0, 8.0),
 		})
 
 func _build_ui() -> void:
-	# Full-screen dark background layer
+	# Cartographic Visual Map Background (1280x720)
+	var bg_canvas := CanvasLayer.new()
+	bg_canvas.layer = -2
+	
 	_bg_rect = ColorRect.new()
 	_bg_rect.color = Color(0.06, 0.05, 0.08, 1.0)
 	_bg_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var bg_canvas := CanvasLayer.new()
-	bg_canvas.layer = -1
 	bg_canvas.add_child(_bg_rect)
+
+	_map_sprite = Sprite2D.new()
+	_map_sprite.centered = false
+	_map_sprite.texture = PixelRenderer.generate_cartographic_map_texture(1280, 720, 42)
+	_map_sprite.modulate = Color(1.0, 1.0, 1.0, 0.88)
+	bg_canvas.add_child(_map_sprite)
+
 	add_child(bg_canvas)
 
 	# UI Overlay Canvas
 	var ui_canvas := CanvasLayer.new()
 	ui_canvas.layer = 10
 
-	# Header Title & Subtitle
+	# Header Title & Subtitle (Centered over Graph Area)
 	var header_container := VBoxContainer.new()
-	header_container.position = Vector2(0, 10)
-	header_container.size = Vector2(540, 50)
+	header_container.position = Vector2(40, 24)
+	header_container.size = Vector2(780, 60)
 	header_container.alignment = BoxContainer.ALIGNMENT_CENTER
 
 	_title_label = Label.new()
 	_title_label.text = "THE SEVERED LANDS"
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_title_label.add_theme_font_size_override("font_size", 16)
-	_title_label.add_theme_color_override("font_color", Color(0.90, 0.82, 0.70, 1.0))
+	_title_label.add_theme_font_size_override("font_size", 22)
+	_title_label.add_theme_color_override("font_color", Color(0.95, 0.88, 0.75, 1.0))
 	header_container.add_child(_title_label)
 
 	_subtitle_label = Label.new()
-	_subtitle_label.text = "— CAMPAIGN REGION SELECTOR —"
+	_subtitle_label.text = "— CAMPAIGN REGION MAP —"
 	_subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_subtitle_label.add_theme_font_size_override("font_size", 9)
-	_subtitle_label.add_theme_color_override("font_color", Color(0.50, 0.45, 0.40, 1.0))
+	_subtitle_label.add_theme_font_size_override("font_size", 12)
+	_subtitle_label.add_theme_color_override("font_color", Color(0.65, 0.58, 0.48, 1.0))
 	header_container.add_child(_subtitle_label)
 
 	ui_canvas.add_child(header_container)
 
-	# Detail Panel (Right Side — Sleek Dark Glass Style)
+	# Detail Panel (Right Side — 380x640 Sleek Widescreen Glass)
 	_detail_panel = ColorRect.new()
 	_detail_panel.color = Color(0.07, 0.06, 0.09, 0.94)
-	_detail_panel.position = Vector2(550, 20)
-	_detail_panel.size = Vector2(280, 350)
+	_detail_panel.position = Vector2(860, 40)
+	_detail_panel.size = Vector2(380, 640)
 	ui_canvas.add_child(_detail_panel)
 
 	# Panel Border Accent
 	_detail_border = ReferenceRect.new()
 	_detail_border.size = _detail_panel.size
 	_detail_border.border_color = Color(0.6, 0.45, 0.25, 0.6)
-	_detail_border.border_width = 1.5
+	_detail_border.border_width = 2.0
 	_detail_panel.add_child(_detail_border)
 
 	# Panel Contents VBox
 	var content_vbox := VBoxContainer.new()
-	content_vbox.position = Vector2(14, 12)
-	content_vbox.size = Vector2(252, 326)
-	content_vbox.add_theme_constant_override("separation", 6)
+	content_vbox.position = Vector2(20, 20)
+	content_vbox.size = Vector2(340, 600)
+	content_vbox.add_theme_constant_override("separation", 10)
 	_detail_panel.add_child(content_vbox)
 
 	_detail_name = Label.new()
-	_detail_name.add_theme_font_size_override("font_size", 15)
+	_detail_name.add_theme_font_size_override("font_size", 20)
 	_detail_name.add_theme_color_override("font_color", Color(1.0, 0.92, 0.80, 1.0))
 	content_vbox.add_child(_detail_name)
 
 	_detail_dominator = Label.new()
-	_detail_dominator.add_theme_font_size_override("font_size", 10)
+	_detail_dominator.add_theme_font_size_override("font_size", 13)
 	_detail_dominator.add_theme_color_override("font_color", Color(0.85, 0.65, 0.35, 1.0))
 	content_vbox.add_child(_detail_dominator)
 
 	_detail_theme = Label.new()
-	_detail_theme.add_theme_font_size_override("font_size", 10)
+	_detail_theme.add_theme_font_size_override("font_size", 13)
 	content_vbox.add_child(_detail_theme)
 
 	_detail_difficulty = Label.new()
-	_detail_difficulty.add_theme_font_size_override("font_size", 10)
+	_detail_difficulty.add_theme_font_size_override("font_size", 13)
 	_detail_difficulty.add_theme_color_override("font_color", Color(0.9, 0.7, 0.4, 1.0))
 	content_vbox.add_child(_detail_difficulty)
 
 	_detail_status = Label.new()
-	_detail_status.add_theme_font_size_override("font_size", 10)
+	_detail_status.add_theme_font_size_override("font_size", 13)
 	content_vbox.add_child(_detail_status)
 
 	var h_sep := ColorRect.new()
-	h_sep.custom_minimum_size = Vector2(0, 1)
-	h_sep.color = Color(0.3, 0.25, 0.2, 0.4)
+	h_sep.custom_minimum_size = Vector2(0, 2)
+	h_sep.color = Color(0.4, 0.32, 0.25, 0.5)
 	content_vbox.add_child(h_sep)
 
 	_detail_lore = Label.new()
-	_detail_lore.custom_minimum_size = Vector2(252, 130)
+	_detail_lore.custom_minimum_size = Vector2(340, 260)
 	_detail_lore.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_detail_lore.add_theme_font_size_override("font_size", 9)
-	_detail_lore.add_theme_color_override("font_color", Color(0.70, 0.65, 0.60, 1.0))
+	_detail_lore.add_theme_font_size_override("font_size", 13)
+	_detail_lore.add_theme_color_override("font_color", Color(0.75, 0.70, 0.65, 1.0))
 	content_vbox.add_child(_detail_lore)
 
 	# Action Button Container at panel bottom
 	_prompt_button = ColorRect.new()
-	_prompt_button.custom_minimum_size = Vector2(252, 34)
+	_prompt_button.custom_minimum_size = Vector2(340, 48)
 	_prompt_button.color = Color(0.20, 0.15, 0.10, 0.9)
 	content_vbox.add_child(_prompt_button)
 
@@ -218,7 +227,7 @@ func _build_ui() -> void:
 	_prompt_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_prompt_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_prompt_label.add_theme_font_size_override("font_size", 11)
+	_prompt_label.add_theme_font_size_override("font_size", 15)
 	_prompt_button.add_child(_prompt_label)
 
 	add_child(ui_canvas)
@@ -287,8 +296,8 @@ func _process(delta: float) -> void:
 		p["pos"].y -= p["speed"] * delta
 		p["pos"].x += p["drift"] * delta
 		if p["pos"].y < -10:
-			p["pos"].y = 400
-			p["pos"].x = randf_range(0, 844)
+			p["pos"].y = 730
+			p["pos"].x = randf_range(0, 1280)
 
 	queue_redraw()
 
@@ -312,17 +321,17 @@ func _draw() -> void:
 				var both_unlocked := node.unlocked and adj.unlocked
 				if both_unlocked:
 					# Bright energy line
-					draw_line(node.map_position, adj.map_position, Color(0.40, 0.35, 0.30, 0.7), CONNECTION_WIDTH, true)
+					draw_line(node.map_position, adj.map_position, Color(0.45, 0.38, 0.32, 0.8), CONNECTION_WIDTH, true)
 					# Animated moving pulse along the line
 					var dir := (adj.map_position - node.map_position)
 					var dist := dir.length()
 					var norm := dir.normalized()
-					var pulse_pos := node.map_position + norm * fmod(time_ms * 40.0, dist)
+					var pulse_pos := node.map_position + norm * fmod(time_ms * 45.0, dist)
 					var theme_info: Dictionary = THEME_DATA.get(node.hex_theme, THEME_DATA["geocrash"])
-					draw_circle(pulse_pos, 3.0, theme_info["primary"])
+					draw_circle(pulse_pos, 4.5, theme_info["primary"])
 				else:
 					# Dark broken line
-					draw_line(node.map_position, adj.map_position, Color(0.18, 0.12, 0.12, 0.4), 1.5, true)
+					draw_line(node.map_position, adj.map_position, Color(0.18, 0.12, 0.12, 0.4), 2.0, true)
 
 	# 3. Draw Region Nodes (Hexagonal Seals)
 	for nid in _graph.nodes:
@@ -337,22 +346,22 @@ func _draw() -> void:
 			var pulse_scale := 1.0 + 0.12 * sin(_selection_pulse)
 			var glow_r := radius * 1.5 * pulse_scale
 			draw_circle(node.map_position, glow_r, theme_info["glow"] * 0.25)
-			_draw_hexagon(node.map_position, glow_r, Color(theme_color.r, theme_color.g, theme_color.b, 0.5), 2.0)
+			_draw_hexagon(node.map_position, glow_r, Color(theme_color.r, theme_color.g, theme_color.b, 0.5), 3.0)
 
 		# Node base shape & fill
 		if node.unlocked:
 			if node.cleared:
 				# Cleared: Dim, extinguished hex with gold seal outline
 				_draw_hexagon(node.map_position, radius, Color(0.12, 0.15, 0.12, 0.9), 0.0, true)
-				_draw_hexagon(node.map_position, radius, Color(0.4, 0.85, 0.4, 0.8), 2.0)
+				_draw_hexagon(node.map_position, radius, Color(0.4, 0.85, 0.4, 0.8), 3.0)
 			else:
 				# Unlocked: Bright theme fill & strong outline
 				_draw_hexagon(node.map_position, radius, theme_color * 0.25, 0.0, true)
-				_draw_hexagon(node.map_position, radius, theme_color, 2.5)
+				_draw_hexagon(node.map_position, radius, theme_color, 3.5)
 		else:
 			# Locked: Dark iron hex with red seal outline
 			_draw_hexagon(node.map_position, radius, Color(0.08, 0.05, 0.06, 0.9), 0.0, true)
-			_draw_hexagon(node.map_position, radius, Color(0.45, 0.15, 0.15, 0.5), 1.5)
+			_draw_hexagon(node.map_position, radius, Color(0.45, 0.15, 0.15, 0.5), 2.0)
 
 		# Custom Symbol Glyphs
 		_draw_node_symbol(node, theme_color)
@@ -379,47 +388,47 @@ func _draw_node_symbol(node: OverworldGraph.OverworldNode, theme_color: Color) -
 	match node.node_type:
 		OverworldGraph.NodeType.STARTER_VAULT:
 			# Sword rune (vertical blade line + crossguard)
-			draw_line(center + Vector2(0, -9), center + Vector2(0, 9), col, 2.0)
-			draw_line(center + Vector2(-5, -2), center + Vector2(5, -2), col, 2.0)
+			draw_line(center + Vector2(0, -14), center + Vector2(0, 14), col, 3.0)
+			draw_line(center + Vector2(-8, -3), center + Vector2(8, -3), col, 3.0)
 
 		OverworldGraph.NodeType.CAMPSITE:
 			# Tuning Fork / Rest Flame crest
-			draw_line(center + Vector2(-4, -6), center + Vector2(-4, 2), col, 2.0)
-			draw_line(center + Vector2(4, -6), center + Vector2(4, 2), col, 2.0)
-			draw_line(center + Vector2(-4, 2), center + Vector2(4, 2), col, 2.0)
-			draw_line(center + Vector2(0, 2), center + Vector2(0, 8), col, 2.0)
+			draw_line(center + Vector2(-6, -9), center + Vector2(-6, 3), col, 3.0)
+			draw_line(center + Vector2(6, -9), center + Vector2(6, 3), col, 3.0)
+			draw_line(center + Vector2(-6, 3), center + Vector2(6, 3), col, 3.0)
+			draw_line(center + Vector2(0, 3), center + Vector2(0, 12), col, 3.0)
 
 		OverworldGraph.NodeType.BOSS_GATE:
 			# Dominator Crown / Hex Crest
 			var crown := PackedVector2Array([
-				center + Vector2(-7, 4),
-				center + Vector2(-7, -4),
-				center + Vector2(-3, 0),
-				center + Vector2(0, -7),
-				center + Vector2(3, 0),
-				center + Vector2(7, -4),
-				center + Vector2(7, 4),
+				center + Vector2(-10, 6),
+				center + Vector2(-10, -6),
+				center + Vector2(-4, 0),
+				center + Vector2(0, -10),
+				center + Vector2(4, 0),
+				center + Vector2(10, -6),
+				center + Vector2(10, 6),
 			])
-			draw_polyline(crown, col, 2.0, true)
+			draw_polyline(crown, col, 3.0, true)
 
 		_:
 			# Standard Dungeon / Rift diamond
 			var diamond := PackedVector2Array([
-				center + Vector2(0, -6),
-				center + Vector2(6, 0),
-				center + Vector2(0, 6),
-				center + Vector2(-6, 0),
-				center + Vector2(0, -6),
+				center + Vector2(0, -9),
+				center + Vector2(9, 0),
+				center + Vector2(0, 9),
+				center + Vector2(-9, 0),
+				center + Vector2(0, -9),
 			])
-			draw_polyline(diamond, col, 1.5, true)
+			draw_polyline(diamond, col, 2.5, true)
 
 	# Checkmark for cleared nodes
 	if node.cleared:
 		draw_polyline(PackedVector2Array([
-			center + Vector2(-4, 0),
-			center + Vector2(-1, 3),
-			center + Vector2(5, -4)
-		]), Color(0.4, 1.0, 0.4, 1.0), 2.5)
+			center + Vector2(-6, 0),
+			center + Vector2(-2, 4),
+			center + Vector2(8, -6)
+		]), Color(0.4, 1.0, 0.4, 1.0), 3.5)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _graph == null:
