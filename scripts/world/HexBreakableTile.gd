@@ -83,7 +83,7 @@ func setup(source_image: Image) -> void:
 
 			var shape_node := CollisionShape2D.new()
 			var rect       := RectangleShape2D.new()
-			rect.size      = Vector2(CELL_PX_W, CELL_PX_H)
+			rect.size      = Vector2(float(CELL_PX_W), float(CELL_PX_H))
 			shape_node.shape = rect
 			if alive_cnt <= 0:
 				shape_node.disabled = true
@@ -91,24 +91,14 @@ func setup(source_image: Image) -> void:
 			var ox := (cx * CELL_PX_W + CELL_PX_W * 0.5) - TILE_SIZE * 0.5
 			var oy := (cy * CELL_PX_H + CELL_PX_H * 0.5) - TILE_SIZE * 0.5
 			shape_node.position = Vector2(ox, oy)
+			add_child(shape_node)
+			cell_row[cx] = shape_node
 
-func _create_cell_shapes() -> void:
-	_cells.clear()
-	for cy in range(CELL_ROWS):
-		var row: Array = []
-		for cx in range(CELL_COLS):
-			var shape := CollisionShape2D.new()
-			var rect  := RectangleShape2D.new()
-			rect.size  = Vector2(float(CELL_PX_W), float(CELL_PX_H))
-			shape.shape = rect
-			# Local offset from center of 16x16 tile
-			shape.position = Vector2(
-				(cx + 0.5) * CELL_PX_W - TILE_SIZE * 0.5,
-				(cy + 0.5) * CELL_PX_H - TILE_SIZE * 0.5
-			)
-			add_child(shape)
-			row.append(shape)
-		_cells.append(row)
+		_cell_alive[cy] = alive_row
+		_cells[cy]      = cell_row
+
+	# Register in group so hex abilities can query nearby tiles
+	add_to_group("hex_breakable")
 
 
 # ── Damage API ────────────────────────────────────────────────────────────────
