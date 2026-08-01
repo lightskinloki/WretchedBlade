@@ -413,12 +413,12 @@ static func _carve_tunnel_v(grid: Array, x: int, y1: int, y2: int, tunnel_w: int
 
 # Carves a diagonal stairwell corridor connecting (x1, y1) to (x2, y2).
 static func _carve_stairwell(grid: Array, x1: int, y1: int, x2: int, y2: int, w: int, h: int) -> void:
-	var steps := abs(x2 - x1)
+	var steps: int = absi(x2 - x1)
 	if steps == 0:
 		return
-	var dx_sign := 1 if x2 > x1 else -1
-	var dy_sign := 1 if y2 > y1 else -1
-	var y_step := float(abs(y2 - y1)) / float(steps)
+	var dx_sign: int = 1 if x2 > x1 else -1
+	var dy_sign: int = 1 if y2 > y1 else -1
+	var y_step: float = float(absi(y2 - y1)) / float(steps)
 	
 	for i in range(steps + 1):
 		var cx := x1 + i * dx_sign
