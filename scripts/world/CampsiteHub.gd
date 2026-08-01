@@ -10,6 +10,12 @@ var world_gen: WorldGenerator = null
 var _player: CharacterBody2D = null
 var _near_station: String = ""  # Currently hovered station ID
 
+# Parallax environment layers (scrolled in _process)
+var _far_world: Sprite2D = null
+var _far_base_pos := Vector2.ZERO
+var _structure_layer: Sprite2D = null
+var _structure_base_pos := Vector2.ZERO
+
 # UI elements
 var _ui_layer: CanvasLayer
 var _prompt_label: Label
@@ -27,13 +33,30 @@ func _ready() -> void:
 	_generate_sanctuary_level()
 	_build_hub_ui()
 
+func _process(_delta: float) -> void:
+	# Procedural parallax: sanctuary environment has physical depth.
+	if _player == null:
+		return
+	if is_instance_valid(_far_world):
+		_far_world.position = _far_base_pos + _player.global_position * 0.08
+	if is_instance_valid(_structure_layer):
+		_structure_layer.position = _structure_base_pos + _player.global_position * 0.24
+
 # ── Procedural Sanctuary Level Generation ────────────────────────────────────
-# Uses DungeonGraph + RoomTerrainGenerator + WorldGenerator
+# Uses CampsiteEnvironmentGenerator for full runtime environment construction.
 func _generate_sanctuary_level() -> void:
 	var env_data: Dictionary = CampsiteEnvironmentGenerator.build(world_container, 77777)
 	var spawn_pos: Vector2 = env_data.get("spawn", Vector2(600.0, 360.0))
 	var floor_spots: Array[Vector2] = env_data.get("floor_spots", [])
 	var room_w: int = env_data.get("room_w", 76)
+
+	# Store parallax layer refs for _process scrolling
+	_far_world = env_data.get("far_world", null) as Sprite2D
+	_structure_layer = env_data.get("structures", null) as Sprite2D
+	if _far_world != null:
+		_far_base_pos = _far_world.position
+	if _structure_layer != null:
+		_structure_base_pos = _structure_layer.position
 
 	_spawn_player(spawn_pos)
 	_setup_stations(floor_spots, room_w)
