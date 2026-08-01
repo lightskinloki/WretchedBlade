@@ -103,7 +103,7 @@ func setup(source_image: Image) -> void:
 
 # ── Damage API ────────────────────────────────────────────────────────────────
 # Applies a shape pattern centered at global_impact.
-func apply_hex_damage(global_impact: Vector2, pattern: Dictionary) -> void:
+func take_hex_damage(global_impact: Vector2, pattern: Dictionary) -> void:
 	# Impact position relative to top-left of this tile
 	var lp         := to_local(global_impact)
 	var px_center  := Vector2i(
