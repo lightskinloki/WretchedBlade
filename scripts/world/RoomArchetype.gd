@@ -512,18 +512,16 @@ static func _skeleton_sanctuary(grid: Array, rng: RandomNumberGenerator, w: int,
 	var c1_x := 4; var c1_y := clampi(floor_lo - c1_h + 2, 3, h - c1_h - 3)
 	_carve_chamber(grid, c1_x, c1_y, c1_w, c1_h, w, h)
 
-	# Connecting portal walkway
-	_carve_tunnel_h(grid, c1_x + c1_w - 2, w - 4, c1_y + c1_h - 4, 4, w, h)
-	
-	var c1_x := clampi(w / 2 - 20, 2, w - 42)
-	var c1_y := clampi(floor_lo - 24, 2, h - 26)
-	_carve_chamber(grid, c1_x, c1_y, 40, 24, w, h)
-	
-	var c2_x := clampi(c1_x + 40 + 8, 2, w - 32)
-	var c2_y := clampi(floor_lo - 18, 2, h - 20)
-	_carve_chamber(grid, c2_x, c2_y, 30, 18, w, h)
-	
-	_carve_tunnel_h(grid, c1_x + 40, c2_x, c1_y + 12, 4, w, h)
+	# Flanking Reflection Alcove (30x18 tiles)
+	var c2_w := mini(30, w - c1_w - 10); var c2_h := mini(18, h - 6)
+	if c2_w >= 10:
+		var c2_x := clampi(c1_x + c1_w + 4, c1_x + c1_w + 4, w - c2_w - 4)
+		var c2_y := clampi(floor_lo - c2_h + 2, 3, h - c2_h - 3)
+		_carve_chamber(grid, c2_x, c2_y, c2_w, c2_h, w, h)
+		_carve_tunnel_h(grid, c1_x + c1_w - 2, c2_x + 4, c1_y + c1_h - 4, 4, w, h)
+		_carve_tunnel_h(grid, c2_x + c2_w - 2, w - 4, c2_y + c2_h - 4, 4, w, h)
+	else:
+		_carve_tunnel_h(grid, c1_x + c1_w - 2, w - 4, c1_y + c1_h - 4, 4, w, h)
 
 # ── Storage Vault ─────────────────────────────────────────────────────────────
 static func _skeleton_storage_vault(grid: Array, rng: RandomNumberGenerator, w: int, h: int, portals: Array, available_slots: Array[PortalSlot], complexity: float = 0.5) -> void:
