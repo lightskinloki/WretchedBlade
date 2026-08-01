@@ -86,7 +86,14 @@ func generate_graph(params: Dictionary) -> DungeonGraph:
 			# Wire edge from previous node on critical path
 			if prev_id >= 0:
 				var exit_slot := _pick_exit_slot(graph.get_node(prev_id).archetype, sec_rng)
-				var entry_slot := _pick_entry_slot(arch, sec_rng)
+				# Extract height band from exit slot to pair with compatible entry
+				var exit_band := ""
+				var prev_slots := RoomArchetype.get_available_portal_slots(graph.get_node(prev_id).archetype)
+				for ps in prev_slots:
+					if ps.slot_id == exit_slot:
+						exit_band = ps.height_band
+						break
+				var entry_slot := _pick_entry_slot(arch, sec_rng, exit_band)
 				graph.connect_nodes(prev_id, nid, exit_slot, entry_slot)
 
 			prev_id = nid
@@ -206,6 +213,7 @@ static func _branch_archetype(rng: RandomNumberGenerator) -> int:
 
 # ── Portal slot matching ──────────────────────────────────────────────────────
 # Returns a right-side slot ID for use as an exit from this archetype.
+# Prefers ground or mid bands on the critical path for smooth traversal.
 static func _pick_exit_slot(archetype: int, rng: RandomNumberGenerator) -> String:
 	var slots := RoomArchetype.get_available_portal_slots(archetype)
 	var rights: Array[RoomArchetype.PortalSlot] = []
@@ -214,9 +222,19 @@ static func _pick_exit_slot(archetype: int, rng: RandomNumberGenerator) -> Strin
 			rights.append(s)
 	if rights.is_empty():
 		return slots[0].slot_id if not slots.is_empty() else "right-ground"
+	# Prefer ground/mid for critical path readability; high slots are optional shortcuts
+	var preferred: Array[RoomArchetype.PortalSlot] = []
+	for s in rights:
+		if s.height_band == "ground" or s.height_band == "mid":
+			preferred.append(s)
+	if not preferred.is_empty():
+		return preferred[rng.randi_range(0, preferred.size() - 1)].slot_id
 	return rights[rng.randi_range(0, rights.size() - 1)].slot_id
 
-static func _pick_entry_slot(archetype: int, rng: RandomNumberGenerator) -> String:
+# Returns a left-side slot ID for entry into this archetype.
+# When an exit_band hint is provided, prefers matching or adjacent height bands
+# so the player transitions smoothly between connected macro-rooms.
+static func _pick_entry_slot(archetype: int, rng: RandomNumberGenerator, exit_band: String = "") -> String:
 	var slots := RoomArchetype.get_available_portal_slots(archetype)
 	var lefts: Array[RoomArchetype.PortalSlot] = []
 	for s in slots:
@@ -224,7 +242,29 @@ static func _pick_entry_slot(archetype: int, rng: RandomNumberGenerator) -> Stri
 			lefts.append(s)
 	if lefts.is_empty():
 		return slots[0].slot_id if not slots.is_empty() else "left-ground"
+	# If we have a hint from the exit slot, prefer the same height band
+	if not exit_band.is_empty():
+		var matched: Array[RoomArchetype.PortalSlot] = []
+		for s in lefts:
+			if s.height_band == exit_band:
+				matched.append(s)
+		if not matched.is_empty():
+			return matched[rng.randi_range(0, matched.size() - 1)].slot_id
+		# Adjacent band fallback: ground↔mid or mid↔high
+		var adjacent: Array[RoomArchetype.PortalSlot] = []
+		for s in lefts:
+			if _bands_adjacent(exit_band, s.height_band):
+				adjacent.append(s)
+		if not adjacent.is_empty():
+			return adjacent[rng.randi_range(0, adjacent.size() - 1)].slot_id
 	return lefts[rng.randi_range(0, lefts.size() - 1)].slot_id
+
+static func _bands_adjacent(a: String, b: String) -> bool:
+	if a == "ground" and b == "mid": return true
+	if a == "mid" and b == "ground": return true
+	if a == "mid" and b == "high": return true
+	if a == "high" and b == "mid": return true
+	return false
 
 static func _pick_spare_slot(archetype: int, node_id: int, graph: DungeonGraph, rng: RandomNumberGenerator) -> String:
 	var slots := RoomArchetype.get_available_portal_slots(archetype)

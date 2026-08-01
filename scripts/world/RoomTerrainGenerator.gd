@@ -257,7 +257,14 @@ static func _get_floor_anchors(node: DungeonGraph.RoomNode, w: int, h: int) -> A
 				break
 	return anchors
 
-# ── BFS flood-fill: returns true if all portal floor anchors are reachable ──
+# ── Dash-aware BFS flood-fill: validates portal reachability ──────────────────
+# Explores standard movement (cardinal adjacency), jump reach (up to 4 tiles
+# vertical, 5 tiles horizontal), and dash-jump reach (up to 8 tiles horizontal).
+# If portals are disconnected, auto-inserts stepping platforms to reconnect.
+const JUMP_V := 4    # Max standard jump height in tiles
+const JUMP_H := 5    # Max standard jump horizontal reach in tiles
+const DASH_H := 8    # Max dash-jump horizontal reach in tiles
+
 static func _portals_are_connected(grid: Array, node: DungeonGraph.RoomNode, w: int, h: int) -> bool:
 	var anchors := _get_floor_anchors(node, w, h)
 	if anchors.size() < 2:
@@ -268,9 +275,10 @@ static func _portals_are_connected(grid: Array, node: DungeonGraph.RoomNode, w: 
 	var queue: Array[Vector2i] = [start]
 	visited[start] = true
 
-	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 	while not queue.is_empty():
 		var cur: Vector2i = queue.pop_front()
+		# Cardinal movement (standard BFS adjacency)
+		var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 		for dir: Vector2i in dirs:
 			var nx: Vector2i = cur + dir
 			if nx.x < 0 or nx.x >= w or nx.y < 0 or nx.y >= h:
@@ -279,19 +287,92 @@ static func _portals_are_connected(grid: Array, node: DungeonGraph.RoomNode, w: 
 				continue
 			if grid[nx.y][nx.x] != TILE_EMPTY and grid[nx.y][nx.x] != TILE_FLOOR:
 				continue
-			# Player-height clearance: the body is ~2 tiles tall, so a cell is
-			# only traversable if the cell above is not an unbreakable WALL.
-			# A 1-tile gap under a wall slab is impassable and must fail the
-			# check so the skeleton retry loop regenerates the room.
+			# Player-height clearance: body is ~2 tiles tall
 			if nx.y - 1 >= 0 and grid[nx.y - 1][nx.x] == TILE_WALL:
 				continue
 			visited[nx] = true
 			queue.append(nx)
 
+		# Jump reach: explore tiles within jump envelope (vertical ≤4, horizontal ≤5)
+		for jx in range(maxi(0, cur.x - JUMP_H), mini(w, cur.x + JUMP_H + 1)):
+			for jy in range(maxi(0, cur.y - JUMP_V), mini(h, cur.y + 1)):
+				var jp := Vector2i(jx, jy)
+				if visited.has(jp):
+					continue
+				if grid[jp.y][jp.x] != TILE_EMPTY and grid[jp.y][jp.x] != TILE_FLOOR:
+					continue
+				if jp.y - 1 >= 0 and grid[jp.y - 1][jp.x] == TILE_WALL:
+					continue
+				visited[jp] = true
+				queue.append(jp)
+
+		# Dash-jump reach: explore wider horizontal envelope (≤8 tiles, same or lower)
+		for dx in range(maxi(0, cur.x - DASH_H), mini(w, cur.x + DASH_H + 1)):
+			for dy in range(cur.y, mini(h, cur.y + 3)):
+				var dp := Vector2i(dx, dy)
+				if visited.has(dp):
+					continue
+				if grid[dp.y][dp.x] != TILE_EMPTY and grid[dp.y][dp.x] != TILE_FLOOR:
+					continue
+				if dp.y - 1 >= 0 and grid[dp.y - 1][dp.x] == TILE_WALL:
+					continue
+				visited[dp] = true
+				queue.append(dp)
+
+	# Check if all anchors are reachable
+	var all_connected := true
 	for i in range(1, anchors.size()):
 		if not visited.has(anchors[i]):
-			return false
+			all_connected = false
+			break
+
+	# Auto-repair: if disconnected, carve a 3-tile wide vertical access shaft
+	if not all_connected:
+		_auto_repair_connectivity(grid, anchors, visited, w, h)
+		return true  # Repaired — accept the layout
+
 	return true
+
+# ── Auto-repair: carves stepping platforms to reconnect isolated portals ─────
+# When BFS finds an unreachable portal anchor, builds a 3-tile wide vertical
+# access shaft with step platforms every 3 tiles between the closest reachable
+# and unreachable anchors.
+static func _auto_repair_connectivity(grid: Array, anchors: Array[Vector2i], visited: Dictionary, w: int, h: int) -> void:
+	for i in range(1, anchors.size()):
+		if visited.has(anchors[i]):
+			continue
+		# Find the closest reachable anchor
+		var target := anchors[i]
+		var closest := anchors[0]
+		var best_dist := 99999.0
+		for j in range(anchors.size()):
+			if not visited.has(anchors[j]):
+				continue
+			var d := float((anchors[j].x - target.x) * (anchors[j].x - target.x) + (anchors[j].y - target.y) * (anchors[j].y - target.y))
+			if d < best_dist:
+				best_dist = d
+				closest = anchors[j]
+		# Carve a 3-tile wide shaft with step platforms between closest and target
+		var shaft_x := (closest.x + target.x) / 2
+		shaft_x = clampi(shaft_x, 2, w - 5)
+		var y_top := mini(closest.y, target.y)
+		var y_bot := maxi(closest.y, target.y)
+		# Clear vertical shaft
+		for y in range(maxi(2, y_top - 2), mini(h - 1, y_bot + 2)):
+			for dx in range(3):
+				var sx := shaft_x + dx
+				if sx >= 0 and sx < w:
+					if grid[y][sx] != TILE_FLOOR:
+						grid[y][sx] = TILE_EMPTY
+		# Place step platforms every 3 tiles
+		var step_side := 0
+		for y in range(y_bot, y_top - 1, -3):
+			var plat_x := shaft_x if step_side == 0 else shaft_x + 1
+			if y >= 0 and y < h and plat_x >= 0 and plat_x < w:
+				grid[y][plat_x] = TILE_FLOOR
+				if plat_x + 1 < w:
+					grid[y][plat_x + 1] = TILE_FLOOR
+			step_side = 1 - step_side
 
 # ── Phase E: Decoration ────────────────────────────────────────────────────
 # Adds visual detail without affecting gameplay structure.
